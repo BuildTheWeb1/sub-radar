@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest add badge select separator sheet skeleton sonner dropdown-menu --yes)",
+      "Bash(npm run:*)"
     ]
   }
 }
