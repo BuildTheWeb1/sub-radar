@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { scrape } from '@/lib/scraper'
 import { supabaseAdmin } from '@/lib/supabase'
 
-export const maxDuration = 300 // 5 minutes (requires Vercel Pro)
+export const maxDuration = 60 // 60 seconds (Vercel Hobby max)
 
 export async function GET(req: NextRequest) {
   // Verify the request is from Vercel Cron
