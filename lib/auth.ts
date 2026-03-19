@@ -1,9 +1,14 @@
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
+import GoogleProvider from 'next-auth/providers/google'
 import bcrypt from 'bcryptjs'
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
       name: 'credentials',
       credentials: {
@@ -42,13 +47,20 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
+    async signIn({ user, account }) {
+      // For Google sign-in, restrict to admin email only
+      if (account?.provider === 'google') {
+        return user.email === process.env.ADMIN_EMAIL
+      }
+      return true
+    },
     async jwt({ token, user }) {
-      if (user) token.userId = user.id
+      if (user) token.userId = user.id ?? process.env.DEFAULT_USER_ID
       return token
     },
     async session({ session, token }) {
-      if (token.userId && session.user) {
-        session.user.id = token.userId as string
+      if (session.user) {
+        session.user.id = (token.userId as string) ?? process.env.DEFAULT_USER_ID
       }
       return session
     },
