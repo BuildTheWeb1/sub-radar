@@ -1,6 +1,7 @@
 import { NextAuthOptions, getServerSession } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
 import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -16,8 +17,32 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) token.userId = user.id
+    async signIn({ user, account }) {
+      if (account?.provider === 'google') {
+        try {
+          // Persist the user to Supabase so they're visible in the dashboard
+          await supabaseAdmin.from('users').upsert(
+            {
+              id: account.providerAccountId,
+              email: user.email,
+              name: user.name,
+              image: user.image,
+              last_seen_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          )
+        } catch (err) {
+          // Don't block sign-in if DB write fails
+          console.error('[auth] Failed to upsert user:', err)
+        }
+      }
+      return true
+    },
+    async jwt({ token, user, account }) {
+      if (user && account) {
+        // account.providerAccountId is the stable Google sub ID — more reliable than user.id
+        token.userId = account.providerAccountId ?? user.id
+      }
       return token
     },
     async session({ session, token }) {

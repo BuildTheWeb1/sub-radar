@@ -7,7 +7,9 @@
       "Bash(npm run:*)",
       "Bash(/Users/webspacedeveloper/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.5/skills/brainstorming/scripts/start-server.sh --project-dir /Users/webspacedeveloper/Documents/projects/sub-radar)",
       "Bash(grep -r session.user /Users/webspacedeveloper/Documents/projects/sub-radar --include=*.tsx --include=*.ts)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm ls:*)",
+      "Bash(grep -r 'export async function sign' /Users/webspacedeveloper/Documents/projects/sub-radar --include=*.ts --include=*.tsx)"
     ]
   }
 }

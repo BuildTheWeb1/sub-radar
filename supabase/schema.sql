@@ -1,3 +1,13 @@
+-- Users table: tracks authenticated users (populated on first Google sign-in)
+create table if not exists users (
+  id text primary key,
+  email text,
+  name text,
+  image text,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+
 -- Posts table: stores scraped Reddit posts
 create table if not exists posts (
   id uuid primary key default gen_random_uuid(),
