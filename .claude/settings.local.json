@@ -4,7 +4,9 @@
       "Bash(npx tsc:*)",
       "Bash(npm install:*)",
       "Bash(npx shadcn@latest add badge select separator sheet skeleton sonner dropdown-menu --yes)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(/Users/webspacedeveloper/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.5/skills/brainstorming/scripts/start-server.sh --project-dir /Users/webspacedeveloper/Documents/projects/sub-radar)",
+      "Bash(grep -r session.user /Users/webspacedeveloper/Documents/projects/sub-radar --include=*.tsx --include=*.ts)"
     ]
   }
 }

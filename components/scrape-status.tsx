@@ -51,13 +51,13 @@ export function ScrapeStatus() {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3">
+    <div className="rounded-lg border border-[#fde8cc] bg-[#fffbf5] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Scraper</span>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#c2410c] hover:bg-[#fff7ed]"
           onClick={handleTrigger}
           disabled={triggering}
         >
@@ -86,7 +86,9 @@ export function ScrapeStatus() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="font-medium text-foreground">{status?.new_posts ?? 0}</span>
+          <span className="bg-[#fde8cc] text-[#c2410c] font-bold text-xs px-2 py-0.5 rounded-full">
+            {status?.new_posts ?? 0}
+          </span>
           <span>unreviewed posts</span>
         </div>
       </div>

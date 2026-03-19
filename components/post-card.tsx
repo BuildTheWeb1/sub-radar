@@ -50,7 +50,7 @@ export function PostCard({ post, onStatusChange }: PostCardProps) {
   const timeAgo = formatDistanceToNow(new Date(post.posted_at), { addSuffix: true })
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3 hover:border-foreground/20 transition-colors">
+    <div className="rounded-lg border border-[#fde8cc] bg-[#fffbf5] p-4 space-y-3 hover:border-[#fed7aa] hover:shadow-md transition-all" style={{ boxShadow: '0 1px 4px rgba(234,88,12,0.07)' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <a
@@ -68,7 +68,7 @@ export function PostCard({ post, onStatusChange }: PostCardProps) {
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-        <span className="font-medium text-foreground">r/{post.subreddit}</span>
+        <span className="font-semibold text-[#c2410c]">r/{post.subreddit}</span>
         <span>·</span>
         <span>{post.upvotes} pts</span>
         <span>·</span>
@@ -93,7 +93,7 @@ export function PostCard({ post, onStatusChange }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#9a6b4b] hover:bg-[#fff7ed]"
           disabled={post.status === 'replied' || loading !== null}
           onClick={() => updateStatus('replied')}
         >
@@ -103,7 +103,7 @@ export function PostCard({ post, onStatusChange }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#9a6b4b] hover:bg-[#fff7ed]"
           disabled={post.status === 'ignored' || loading !== null}
           onClick={() => updateStatus('ignored')}
         >
@@ -113,7 +113,7 @@ export function PostCard({ post, onStatusChange }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#9a6b4b] hover:bg-[#fff7ed]"
           disabled={loading !== null}
           onClick={() => updateStatus(post.status === 'saved' ? 'new' : 'saved')}
         >
