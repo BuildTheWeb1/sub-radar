@@ -15,23 +15,24 @@
 
 ---
 
-## Colour tokens
+## Colour palette
 
-Add CSS custom properties to `app/globals.css` (or a dedicated tokens file):
+The existing `app/globals.css` uses the `oklch` colour space for shadcn tokens — do not add hex custom properties to that file. Instead, apply warm colours directly using Tailwind's arbitrary value syntax (e.g. `bg-[#fffbf5]`), which is already used elsewhere in the codebase (`post-card.tsx` uses `bg-green-100`, `bg-yellow-100`, etc.). No changes to `app/globals.css` are required.
 
-| Token | Value | Usage |
-|---|---|---|
-| `--brand-50` | `#fffbf5` | Page backgrounds |
-| `--brand-100` | `#fff7ed` | Active sidebar item bg, scraper widget bg |
-| `--brand-200` | `#fde8cc` | Borders, dividers |
-| `--brand-300` | `#fed7aa` | Hover states, tags |
-| `--brand-400` | `#fca474` | Muted text on dark bg |
-| `--brand-600` | `#ea580c` | Primary accent, CTA buttons, active icon |
-| `--brand-700` | `#c2410c` | Hover on accent, subreddit labels |
-| `--brand-900` | `#431407` | Primary text |
-| `--brand-950` | `#1c0a00` | Headings, logo text |
+Reference values used throughout:
 
-These map onto the existing Tailwind classes already used in the codebase (`orange-*`, `amber-*`) — no new dependencies needed.
+| Hex | Usage |
+|---|---|
+| `#fffbf5` | Page / panel backgrounds |
+| `#fff7ed` | Active sidebar item bg, scraper widget bg |
+| `#fde8cc` | Borders, dividers |
+| `#fed7aa` | Hover states, tag borders |
+| `#fca474` | Muted text on dark backgrounds |
+| `#ea580c` | Primary accent, CTA, active icon |
+| `#c2410c` | Hover accent, subreddit labels |
+| `#9a6b4b` | Muted body text |
+| `#431407` | Primary text |
+| `#1c0a00` | Headings, logo text |
 
 ---
 
@@ -42,7 +43,7 @@ These map onto the existing Tailwind classes already used in the codebase (`oran
 
 ### Left panel (brand)
 - Background: gradient `from-[#1c0a00] via-[#431407] to-[#7c2d12]`
-- Two decorative translucent circles (CSS `position:absolute`) for subtle depth — no images or SVG assets needed
+- Two decorative translucent circles (CSS `position:absolute`) for subtle depth — no image assets needed
 - Logo mark: small orange rounded square with white circle inside + "SubRadar" wordmark in `fed7aa`
 - Eyebrow label: "Reddit lead intelligence" in `ea580c`, uppercase, tracked
 - Headline: "Find customers before your competitors do." — white, bold, large
@@ -53,7 +54,7 @@ These map onto the existing Tailwind classes already used in the codebase (`oran
 - Background: `#fffbf5`
 - Heading: "Welcome back" — `1c0a00`, bold
 - Subtext: one sentence prompt — `9a6b4b`
-- Google sign-in button: white bg, `fde8cc` border, real Google logo SVG (inline), "Continue with Google" label — `431407`
+- Google sign-in button: white bg, `fde8cc` border, Google logo as an inline SVG `<path>` (no external asset), "Continue with Google" label — `431407`
 - Fine print: "Access is by invitation only" — `c4a882`, centred
 - Terms note at bottom, separated by a `fde8cc` rule
 
@@ -63,10 +64,14 @@ These map onto the existing Tailwind classes already used in the codebase (`oran
 
 **Current:** Plain `<span>` with text "SubRadar" on a white bar.
 **New:**
-- Logo mark: 20×20px orange rounded square + white dot, matching the login panel
-- Wordmark next to it in `1c0a00`, `font-weight:700`
-- Right side: user avatar — circular badge showing initials, `fde8cc` background, `c2410c` text, pulled from `session.user.name` or `session.user.email`
+- Logo mark: a `div` — `w-5 h-5 bg-[#ea580c] rounded-[5px]` with a centred inner `div` — `w-[7px] h-[7px] rounded-full bg-white opacity-90`. Pure CSS, no SVG or image.
+- Wordmark: `<span>` with `font-bold text-[#1c0a00] tracking-tight text-sm`
+- Right side: `<UserAvatar />` component (see implementation note below)
 - Border-bottom remains; background stays white
+
+**Implementation note — UserAvatar:** Create `components/user-avatar.tsx` as a `"use client"` component. Call `useSession()`. If session is unavailable (`status !== 'authenticated'`), render nothing (`return null`). When authenticated, derive initials from `session.user.name` (first letter of each word, max 2) or fall back to the first two characters of `session.user.email`. Render as a `w-7 h-7 rounded-full bg-[#fde8cc] text-[#c2410c] text-xs font-bold flex items-center justify-center` div.
+
+**Duplication note:** `app/dashboard/layout.tsx` and `app/settings/layout.tsx` contain identical header markup. Apply the same change to both files.
 
 ---
 
@@ -86,7 +91,7 @@ These map onto the existing Tailwind classes already used in the codebase (`oran
 **New:**
 - Background: `#fffbf5`, border `#fde8cc`
 - "Run now" button: `border-[#fde8cc]`, text `#c2410c`, hover `bg-[#fff7ed]`
-- "Unreviewed posts" count: displayed as a pill badge (`bg-[#fde8cc]`, text `#c2410c`, `font-bold`) instead of plain text
+- "Unreviewed posts" count: wrap in an inline `span` with `bg-[#fde8cc] text-[#c2410c] font-bold text-xs px-2 py-0.5 rounded-full` (do not use the shadcn `Badge` component — the plain span is sufficient and avoids variant conflicts)
 
 ---
 
@@ -108,11 +113,17 @@ These map onto the existing Tailwind classes already used in the codebase (`oran
 
 ## 6. Post feed empty state (`components/post-feed.tsx`)
 
-Read this file to find the empty state and replace the plain text with:
-- Centred container, `py-16`
-- A simple icon (e.g. Lucide `Inbox` or `Radio`) in `text-[#fde8cc]`, large size
-- Heading: "No posts yet" — `text-[#431407]`, `font-semibold`
-- Body: "Run the scraper to fetch your first batch." — `text-[#9a6b4b]`
+The component has two distinct states. Restyle only the **"no posts found"** empty state (line 139–145 — `posts.length === 0` after loading). Leave the loading skeleton (lines 130–138) untouched.
+
+Replace the existing dashed border container with:
+```tsx
+<div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+  <Inbox className="h-10 w-10 text-[#fde8cc]" />
+  <p className="text-sm font-semibold text-[#431407]">No posts found</p>
+  <p className="text-xs text-[#9a6b4b]">Adjust filters or wait for the next scrape.</p>
+</div>
+```
+Import `Inbox` from `lucide-react` (already a project dependency).
 
 ---
 
@@ -127,11 +138,11 @@ Read this file to find the empty state and replace the plain text with:
 
 ## Files to change
 
-1. `app/globals.css` — add brand colour tokens
-2. `app/login/page.tsx` — split screen layout
-3. `app/dashboard/layout.tsx` — new header
-4. `app/settings/layout.tsx` — same header change
-5. `components/sidebar.tsx` — warm active/hover states
-6. `components/scrape-status.tsx` — warm card + pill badge
-7. `components/post-card.tsx` — warm border/shadow + subreddit colour
-8. `components/post-feed.tsx` — improved empty state
+1. `app/login/page.tsx` — split screen layout
+3. `app/dashboard/layout.tsx` — new header with logo mark + UserAvatar
+4. `app/settings/layout.tsx` — same header change (identical to dashboard layout header)
+5. `components/user-avatar.tsx` — new `"use client"` component (create); renders initials badge using `useSession()`
+6. `components/sidebar.tsx` — warm active/hover states
+7. `components/scrape-status.tsx` — warm card + pill badge
+8. `components/post-card.tsx` — warm border/shadow + subreddit colour
+9. `components/post-feed.tsx` — improved empty state
