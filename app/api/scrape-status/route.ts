@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireUserId } from '@/lib/auth'
 
 const FREQUENCY_MS: Record<string, number> = {
   '1h': 60 * 60 * 1000,
@@ -9,10 +10,9 @@ const FREQUENCY_MS: Record<string, number> = {
 }
 
 export async function GET() {
-  const userId = process.env.DEFAULT_USER_ID
-  if (!userId) {
-    return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
-  }
+  const result = await requireUserId()
+  if (result instanceof NextResponse) return result
+  const userId = result
 
   const [{ data: lastJob }, { data: config }, { count: newCount }] = await Promise.all([
     supabaseAdmin

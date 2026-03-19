@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireUserId } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl
-  const userId = process.env.DEFAULT_USER_ID
+  const result = await requireUserId()
+  if (result instanceof NextResponse) return result
+  const userId = result
 
-  if (!userId) {
-    return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
-  }
+  const { searchParams } = req.nextUrl
 
   let query = supabaseAdmin
     .from('posts')

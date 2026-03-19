@@ -1,12 +1,31 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireUserId } from '@/lib/auth'
+import { DEFAULT_CONFIG } from '@/lib/defaults'
 
 const RATE_LIMIT_MS = 10 * 60 * 1000 // 10 minutes
 
 export async function POST() {
-  const userId = process.env.DEFAULT_USER_ID
-  if (!userId) {
-    return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
+  const result = await requireUserId()
+  if (result instanceof NextResponse) return result
+  const userId = result
+
+  // Ensure config exists for this user, seed defaults if not
+  const { error: configCheckError } = await supabaseAdmin
+    .from('config')
+    .select('user_id')
+    .eq('user_id', userId)
+    .single()
+
+  if (configCheckError?.code === 'PGRST116') {
+    const { error: insertError } = await supabaseAdmin
+      .from('config')
+      .upsert({ user_id: userId, ...DEFAULT_CONFIG }, { onConflict: 'user_id' })
+    if (insertError) {
+      return NextResponse.json({ error: 'Failed to initialize config' }, { status: 500 })
+    }
+  } else if (configCheckError) {
+    return NextResponse.json({ error: 'Failed to load config' }, { status: 500 })
   }
 
   // Rate limit: check last scrape job
@@ -29,12 +48,12 @@ export async function POST() {
     }
   }
 
-  // Trigger the cron endpoint internally
+  // Fire off the cron scrape without awaiting — it runs as an independent request.
+  // The client polls /api/scrape-status to detect completion.
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-  const res = await fetch(`${baseUrl}/api/cron/scrape`, {
+  fetch(`${baseUrl}/api/cron/scrape?userId=${userId}`, {
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
-  })
+  }).catch((err) => console.error('[trigger] cron fetch error:', err))
 
-  const data = await res.json()
-  return NextResponse.json(data, { status: res.status })
+  return NextResponse.json({ ok: true, started: true })
 }

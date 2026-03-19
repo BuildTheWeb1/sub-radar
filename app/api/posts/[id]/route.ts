@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireUserId } from '@/lib/auth'
 import { PostStatus } from '@/lib/types'
 
 const VALID_STATUSES: PostStatus[] = ['new', 'replied', 'ignored', 'saved']
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const userId = process.env.DEFAULT_USER_ID
 
-  if (!userId) {
-    return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
-  }
+  const result = await requireUserId()
+  if (result instanceof NextResponse) return result
+  const userId = result
 
   const body = await req.json()
   const { status } = body as { status: PostStatus }

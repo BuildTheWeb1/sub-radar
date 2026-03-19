@@ -5,75 +5,73 @@ import { supabaseAdmin } from '@/lib/supabase'
 export const maxDuration = 60 // 60 seconds (Vercel Hobby max)
 
 export async function GET(req: NextRequest) {
-  // Verify the request is from Vercel Cron
+  // Verify the request is from Vercel Cron or the internal trigger
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = process.env.DEFAULT_USER_ID
-  if (!userId) {
-    return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
-  }
+  // Support targeting a specific user (from the manual trigger route)
+  const targetUserId = req.nextUrl.searchParams.get('userId')
 
-  // Load user config
-  const { data: config, error: configError } = await supabaseAdmin
-    .from('config')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
+  // Load configs — either one user or all users
+  let configQuery = supabaseAdmin.from('config').select('*')
+  if (targetUserId) configQuery = configQuery.eq('user_id', targetUserId)
 
-  if (configError || !config) {
+  const { data: configs, error: configError } = await configQuery
+  if (configError || !configs?.length) {
     return NextResponse.json({ error: 'No config found' }, { status: 404 })
   }
 
-  // Log job start
-  const { data: job } = await supabaseAdmin
-    .from('scrape_jobs')
-    .insert({ user_id: userId })
-    .select()
-    .single()
+  let totalInserted = 0
 
-  const jobId = job?.id
-  const logs: string[] = []
+  for (const config of configs) {
+    const userId = config.user_id
 
-  try {
-    const posts = await scrape(config.subreddits, config.keywords, (msg) => {
-      logs.push(msg)
-      console.log(msg)
-    })
+    // Log job start
+    const { data: job } = await supabaseAdmin
+      .from('scrape_jobs')
+      .insert({ user_id: userId })
+      .select()
+      .single()
 
-    // Upsert posts (deduplicate by user_id + reddit_id)
-    let inserted = 0
-    for (const post of posts) {
-      if (post.relevance_score < config.min_relevance) continue
+    const jobId = job?.id
 
-      const { error } = await supabaseAdmin.from('posts').upsert(
-        { ...post, user_id: userId },
-        { onConflict: 'user_id,reddit_id', ignoreDuplicates: true }
-      )
-      if (!error) inserted++
+    try {
+      const posts = await scrape(config.subreddits, config.keywords, (msg) => {
+        console.log(`[${userId}] ${msg}`)
+      })
+
+      let inserted = 0
+      for (const post of posts) {
+        if (post.relevance_score < config.min_relevance) continue
+
+        const { error } = await supabaseAdmin.from('posts').upsert(
+          { ...post, user_id: userId },
+          { onConflict: 'user_id,reddit_id', ignoreDuplicates: true }
+        )
+        if (!error) inserted++
+      }
+
+      if (jobId) {
+        await supabaseAdmin
+          .from('scrape_jobs')
+          .update({ finished_at: new Date().toISOString(), posts_found: inserted })
+          .eq('id', jobId)
+      }
+
+      totalInserted += inserted
+    } catch (err) {
+      const message = (err as Error).message
+
+      if (jobId) {
+        await supabaseAdmin
+          .from('scrape_jobs')
+          .update({ finished_at: new Date().toISOString(), error_message: message })
+          .eq('id', jobId)
+      }
     }
-
-    // Update job as complete
-    if (jobId) {
-      await supabaseAdmin
-        .from('scrape_jobs')
-        .update({ finished_at: new Date().toISOString(), posts_found: inserted })
-        .eq('id', jobId)
-    }
-
-    return NextResponse.json({ ok: true, posts_found: inserted })
-  } catch (err) {
-    const message = (err as Error).message
-
-    if (jobId) {
-      await supabaseAdmin
-        .from('scrape_jobs')
-        .update({ finished_at: new Date().toISOString(), error_message: message })
-        .eq('id', jobId)
-    }
-
-    return NextResponse.json({ error: message }, { status: 500 })
   }
+
+  return NextResponse.json({ ok: true, posts_found: totalInserted })
 }

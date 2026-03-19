@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-
-const DEFAULT_CONFIG = {
-  subreddits: ['intermittentfasting', 'fasting', 'OMAD', 'moodtracking', 'mentalhealth', 'selfimprovement', 'loseit', 'keto'],
-  keywords: ['mood', 'mental clarity', 'brain fog', 'feel better', 'emotional', 'anxiety fasting', 'how do you feel', 'track mood', 'fasting benefits', 'mood swings', 'emotional eating', 'mindfulness fasting'],
-  product_description: '',
-  scrape_frequency: '2h',
-  min_relevance: 20,
-}
+import { requireUserId } from '@/lib/auth'
+import { DEFAULT_CONFIG } from '@/lib/defaults'
 
 export async function GET() {
-  const userId = process.env.DEFAULT_USER_ID
-  if (!userId) return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
+  const result = await requireUserId()
+  if (result instanceof NextResponse) return result
+  const userId = result
 
   const { data, error } = await supabaseAdmin
     .from('config')
@@ -35,8 +30,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const userId = process.env.DEFAULT_USER_ID
-  if (!userId) return NextResponse.json({ error: 'DEFAULT_USER_ID not set' }, { status: 500 })
+  const result = await requireUserId()
+  if (result instanceof NextResponse) return result
+  const userId = result
 
   const body = await req.json()
   const { subreddits, keywords, product_description, scrape_frequency, min_relevance } = body
