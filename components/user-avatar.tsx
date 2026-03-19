@@ -44,7 +44,7 @@ export function UserAvatar() {
       >
         {initials}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
             <div className="flex flex-col gap-0.5">

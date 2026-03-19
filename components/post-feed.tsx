@@ -87,7 +87,9 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-semibold">{title}</h1>
-          {!loading && (
+          {loading && posts.length === 0 ? (
+            <Skeleton className="h-3 w-32 mt-1" />
+          ) : (
             <p className="text-xs text-muted-foreground">
               Showing {posts.length} of {total} posts
             </p>
