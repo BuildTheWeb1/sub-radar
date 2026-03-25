@@ -14,6 +14,11 @@ export async function GET(req: NextRequest) {
   // Support targeting a specific user (from the manual trigger route)
   const targetUserId = req.nextUrl.searchParams.get('userId')
 
+  // Accept a pre-created jobId from the trigger route to avoid a duplicate insert
+  // and close the rate-limit race condition. When called by Vercel Cron directly,
+  // no jobId is provided and we create one per user as before.
+  const preCreatedJobId = req.nextUrl.searchParams.get('jobId')
+
   // Load configs — either one user or all users
   let configQuery = supabaseAdmin.from('config').select('*')
   if (targetUserId) configQuery = configQuery.eq('user_id', targetUserId)
@@ -28,14 +33,19 @@ export async function GET(req: NextRequest) {
   for (const config of configs) {
     const userId = config.user_id
 
-    // Log job start
-    const { data: job } = await supabaseAdmin
-      .from('scrape_jobs')
-      .insert({ user_id: userId })
-      .select()
-      .single()
-
-    const jobId = job?.id
+    // Use the pre-created job record when available (manual trigger), otherwise
+    // create a new one (Vercel Cron scheduled run).
+    let jobId: string | undefined
+    if (preCreatedJobId && targetUserId === userId) {
+      jobId = preCreatedJobId
+    } else {
+      const { data: job } = await supabaseAdmin
+        .from('scrape_jobs')
+        .insert({ user_id: userId })
+        .select()
+        .single()
+      jobId = job?.id
+    }
 
     try {
       const posts = await scrape(config.subreddits, config.keywords, (msg) => {
@@ -63,6 +73,7 @@ export async function GET(req: NextRequest) {
       totalInserted += inserted
     } catch (err) {
       const message = (err as Error).message
+      console.error(`[cron] Scrape error for user ${userId}:`, message)
 
       if (jobId) {
         await supabaseAdmin

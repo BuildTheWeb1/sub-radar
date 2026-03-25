@@ -1,3 +1,4 @@
+import 'server-only'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -7,5 +8,8 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 // Client for browser / user-scoped operations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Admin client for server-side operations (bypasses RLS)
+// Admin client for server-side operations (bypasses RLS).
+// SECURITY: Because this client skips Row Level Security, every query MUST
+// manually scope data by user_id (e.g., .eq('user_id', userId)). Never use
+// this client in browser/client components — it would expose the service role key.
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)

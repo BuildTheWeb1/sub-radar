@@ -70,3 +70,9 @@ create table if not exists scrape_jobs (
 
 create index if not exists scrape_jobs_user_id_idx on scrape_jobs (user_id);
 create index if not exists scrape_jobs_started_at_idx on scrape_jobs (started_at desc);
+
+-- Protect scrape_jobs from direct client access. All reads and writes go through
+-- the server-side supabaseAdmin (service_role), which bypasses RLS. Enabling RLS
+-- with no policies blocks every operation via the anon/authenticated REST API,
+-- preventing users from deleting their own records to bypass the rate limiter.
+alter table public.scrape_jobs enable row level security;

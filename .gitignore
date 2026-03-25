@@ -42,6 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 # claude
+.agents
 .claude
 .superpowers
 docs/

@@ -28,7 +28,9 @@ export async function POST() {
     return NextResponse.json({ error: 'Failed to load config' }, { status: 500 })
   }
 
-  // Rate limit: check last scrape job
+  // Rate limit: atomically insert a job record, then check if there was a recent one.
+  // We insert the job here (not in the cron route) so concurrent requests see it
+  // immediately, closing the TOCTOU race condition.
   const { data: lastJob } = await supabaseAdmin
     .from('scrape_jobs')
     .select('started_at')
@@ -48,10 +50,29 @@ export async function POST() {
     }
   }
 
+  // Insert the job record here, before firing the background request, so any
+  // concurrent trigger requests will see it and be rate-limited.
+  const { data: job, error: jobError } = await supabaseAdmin
+    .from('scrape_jobs')
+    .insert({ user_id: userId })
+    .select()
+    .single()
+
+  if (jobError || !job) {
+    console.error('[trigger] Failed to create job record:', jobError)
+    return NextResponse.json({ error: 'Failed to start scrape job' }, { status: 500 })
+  }
+
   // Fire off the cron scrape without awaiting — it runs as an independent request.
   // The client polls /api/scrape-status to detect completion.
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-  fetch(`${baseUrl}/api/cron/scrape?userId=${userId}`, {
+
+  // Guard: warn if transmitting CRON_SECRET over plain HTTP in non-development
+  if (process.env.NODE_ENV !== 'development' && !baseUrl.startsWith('https://')) {
+    console.warn('[trigger] WARNING: NEXTAUTH_URL is not HTTPS. CRON_SECRET may be transmitted insecurely.')
+  }
+
+  fetch(`${baseUrl}/api/cron/scrape?userId=${userId}&jobId=${job.id}`, {
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
   }).catch((err) => console.error('[trigger] cron fetch error:', err))
 

@@ -74,6 +74,8 @@ async function fetchSubredditPosts(
   return json.data.children
 }
 
+const SUBREDDIT_RE = /^[a-zA-Z0-9_]{1,21}$/
+
 export async function scrape(
   subreddits: string[],
   keywords: string[],
@@ -82,10 +84,13 @@ export async function scrape(
   const seen = new Set<string>()
   const results: RedditPost[] = []
 
-  const total = subreddits.length * keywords.length
+  // Defense-in-depth: skip any subreddit that doesn't match the expected pattern
+  const safeSubreddits = subreddits.filter((s) => SUBREDDIT_RE.test(s))
+
+  const total = safeSubreddits.length * keywords.length
   let count = 0
 
-  for (const subreddit of subreddits) {
+  for (const subreddit of safeSubreddits) {
     for (const keyword of keywords) {
       count++
       onProgress?.(`[${count}/${total}] r/${subreddit} → "${keyword}"`)
