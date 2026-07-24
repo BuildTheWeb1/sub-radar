@@ -92,7 +92,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <p className="text-xs text-muted-foreground line-clamp-2">{post.body}</p>
       )}
 
-      <div className="flex items-center gap-1.5 pt-1">
+      <div className="flex flex-wrap items-center gap-1.5 pt-1">
         <Button
           size="sm"
           variant="outline"

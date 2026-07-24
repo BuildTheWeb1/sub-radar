@@ -146,7 +146,7 @@ export default function SettingsPage() {
             onChange={(e) => setNewSubreddit(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addSubreddit()}
             placeholder="e.g. loseit"
-            className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1 min-w-0 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <Button size="sm" variant="outline" onClick={addSubreddit} disabled={subreddits.length >= 10}>
             <Plus className="h-4 w-4" />
@@ -250,7 +250,7 @@ export default function SettingsPage() {
             onChange={(e) => setNewKeyword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
             placeholder="e.g. mental clarity"
-            className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1 min-w-0 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <Button size="sm" variant="outline" onClick={addKeyword} disabled={keywords.length >= 20}>
             <Plus className="h-4 w-4" />

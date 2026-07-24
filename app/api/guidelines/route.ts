@@ -4,6 +4,7 @@ import { getOrCreateCampaign } from '@/lib/campaigns'
 import { getGuidelinesForSubreddits } from '@/lib/guidelines'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 export async function GET() {
   const result = await requireUserId()

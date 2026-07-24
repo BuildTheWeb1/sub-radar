@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
 
@@ -93,10 +93,19 @@ export async function POST(req: NextRequest) {
     console.warn('[trigger] WARNING: NEXTAUTH_URL is not HTTPS. CRON_SECRET may be transmitted insecurely.')
   }
 
-  fetch(
-    `${baseUrl}/api/cron/scrape?campaignId=${campaignId}&userId=${userId}&jobId=${job.id}`,
-    { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } }
-  ).catch((err) => console.error('[trigger] cron fetch error:', err))
+  // Keep the serverless function alive until the cron fetch is dispatched.
+  // Without after(), the invocation can be frozen once the response is sent,
+  // killing the background scrape before it starts.
+  after(async () => {
+    try {
+      await fetch(
+        `${baseUrl}/api/cron/scrape?campaignId=${campaignId}&userId=${userId}&jobId=${job.id}`,
+        { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } }
+      )
+    } catch (err) {
+      console.error('[trigger] cron fetch error:', err)
+    }
+  })
 
   return NextResponse.json({ ok: true, started: true })
 }

@@ -15,12 +15,19 @@ let contextPromise: Promise<BrowserContext> | null = null
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    browserPromise = import('playwright').then(({ chromium }) =>
-      chromium.launch({
+    browserPromise = import('playwright').then(async ({ chromium }) => {
+      const browser = await chromium.launch({
         headless: true,
         args: ['--disable-blink-features=AutomationControlled', '--no-sandbox'],
       })
-    )
+      // If the browser crashes or disconnects, drop the cached singletons so
+      // the next call relaunches a fresh one instead of reusing a dead handle.
+      browser.on('disconnected', () => {
+        browserPromise = null
+        contextPromise = null
+      })
+      return browser
+    })
   }
   return browserPromise
 }

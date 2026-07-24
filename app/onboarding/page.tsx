@@ -174,7 +174,7 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={handleGetSuggestions} disabled={!canSubmitDescription || suggesting}>
                 {suggesting ? (
                   <>
@@ -235,13 +235,13 @@ export default function OnboardingPage() {
                   )
                 })}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={newSubreddit}
                   onChange={(e) => setNewSubreddit(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSubreddit())}
                   placeholder="Add a subreddit, e.g. loseit"
-                  className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex-1 min-w-0 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button size="sm" variant="outline" onClick={addSubreddit}>
                   <Plus className="h-4 w-4" />
@@ -270,13 +270,13 @@ export default function OnboardingPage() {
                   <p className="text-sm text-muted-foreground">No keywords yet — add some below.</p>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   value={newKeyword}
                   onChange={(e) => setNewKeyword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                   placeholder="e.g. mental clarity"
-                  className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex-1 min-w-0 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button size="sm" variant="outline" onClick={addKeyword} disabled={keywords.length >= 20}>
                   <Plus className="h-4 w-4" />
@@ -284,7 +284,7 @@ export default function OnboardingPage() {
               </div>
             </section>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setStep(1)} disabled={saving}>
                 Back
               </Button>
