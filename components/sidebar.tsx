@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Bookmark, History, Settings } from 'lucide-react'
+import { LayoutDashboard, Bookmark, History, Settings, Lightbulb } from 'lucide-react'
 import { ScrapeStatus } from './scrape-status'
 
 const navItems = [
   { href: '/dashboard', label: 'Feed', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/saved', label: 'Saved', icon: Bookmark },
+  { href: '/dashboard/content-ideas', label: 'Content Ideas', icon: Lightbulb },
   { href: '/dashboard/history', label: 'History', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings, exact: true },
 ]

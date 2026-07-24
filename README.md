@@ -29,7 +29,7 @@ A health/wellness product team monitoring conversations about fasting, mental cl
 ## Tech Stack
 
 - **Framework**: Next.js 16 with React 19
-- **Database**: Supabase (PostgreSQL)
+- **Database**: Neon (serverless Postgres)
 - **Auth**: NextAuth.js (credentials provider)
 - **UI**: shadcn/ui, Tailwind CSS v4
 - **Deployment**: Vercel (with Cron for scheduled scraping)
@@ -50,9 +50,7 @@ A health/wellness product team monitoring conversations about fasting, mental cl
 
    | Variable | Description |
    |----------|-------------|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+   | `DATABASE_URL` | Neon Postgres connection string (pooled) |
    | `NEXTAUTH_SECRET` | Random secret for NextAuth |
    | `NEXTAUTH_URL` | App URL (e.g. `http://localhost:3000`) |
    | `ADMIN_EMAIL` | Email used to log in |

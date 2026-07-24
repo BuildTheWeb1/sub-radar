@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
+import type { Post } from '@/lib/types'
 
 export async function GET(req: NextRequest) {
   const result = await requireUserId()
@@ -9,67 +10,92 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl
 
-  let query = supabaseAdmin
-    .from('posts')
-    .select('*', { count: 'exact' })
-    .eq('user_id', userId)
-
   // Filters
   const VALID_STATUSES = ['new', 'replied', 'ignored', 'saved'] as const
   const status = searchParams.get('status')
+  let statusFilter: string | null = null
   if (status && status !== 'all') {
     if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
-    query = query.eq('status', status)
+    statusFilter = status
   }
 
+  let subredditsFilter: string[] | null = null
   const subreddits = searchParams.get('subreddits')
   if (subreddits) {
-    query = query.in('subreddit', subreddits.split(',').slice(0, 50))
+    subredditsFilter = subreddits.split(',').slice(0, 50)
   }
 
+  let minRelevanceFilter: number | null = null
   const minRelevance = searchParams.get('minRelevance')
   if (minRelevance !== null) {
     const parsed = parseInt(minRelevance, 10)
     if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
-      query = query.gte('relevance_score', parsed)
+      minRelevanceFilter = parsed
     }
   }
 
   const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]+)?$/
+  let dateFromFilter: string | null = null
   const dateFrom = searchParams.get('dateFrom')
   if (dateFrom && ISO_DATE_RE.test(dateFrom)) {
-    query = query.gte('posted_at', dateFrom)
+    dateFromFilter = dateFrom
   }
 
+  let dateToFilter: string | null = null
   const dateTo = searchParams.get('dateTo')
   if (dateTo && ISO_DATE_RE.test(dateTo)) {
-    query = query.lte('posted_at', dateTo)
+    dateToFilter = dateTo
   }
 
-  // Sort
+  // Sort — whitelist ORDER BY clause, never interpolate the column name.
   const sortBy = searchParams.get('sortBy') || 'relevance'
-  const sortMap: Record<string, { col: string; asc: boolean }> = {
-    relevance: { col: 'relevance_score', asc: false },
-    upvotes: { col: 'upvotes', asc: false },
-    comments: { col: 'num_comments', asc: false },
-    recent: { col: 'posted_at', asc: false },
+  const sortMap: Record<string, string> = {
+    relevance: 'relevance_score DESC',
+    upvotes: 'upvotes DESC',
+    comments: 'num_comments DESC',
+    recent: 'posted_at DESC',
   }
-  const sort = sortMap[sortBy] ?? sortMap.relevance
-  query = query.order(sort.col, { ascending: sort.asc })
+  const orderByClause = sortMap[sortBy] ?? sortMap.relevance
 
   // Pagination — clamp to safe bounds
   const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '25') || 25, 1), 100)
   const offset = Math.max(parseInt(searchParams.get('offset') || '0') || 0, 0)
-  query = query.range(offset, offset + limit - 1)
 
-  const { data, count, error } = await query
+  try {
+    // All optional filters are expressed as `(${param}::type IS NULL OR col = ${param})`
+    // so a single parameterized query covers every combination safely.
+    // orderByClause is picked from a fixed, hardcoded whitelist map above (never
+    // derived from raw user input), so sql.unsafe() here is safe.
+    const dataQuery = sql`
+      SELECT * FROM posts
+      WHERE user_id = ${userId}
+        AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
+        AND (${subredditsFilter}::text[] IS NULL OR subreddit = ANY(${subredditsFilter}))
+        AND (${minRelevanceFilter}::int IS NULL OR relevance_score >= ${minRelevanceFilter})
+        AND (${dateFromFilter}::text IS NULL OR posted_at >= ${dateFromFilter})
+        AND (${dateToFilter}::text IS NULL OR posted_at <= ${dateToFilter})
+      ORDER BY ${sql.unsafe(orderByClause)}
+      LIMIT ${limit} OFFSET ${offset}
+    `
 
-  if (error) {
-    console.error('[posts GET] Failed to query posts:', error)
+    const countQuery = sql`
+      SELECT count(*)::int AS count FROM posts
+      WHERE user_id = ${userId}
+        AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
+        AND (${subredditsFilter}::text[] IS NULL OR subreddit = ANY(${subredditsFilter}))
+        AND (${minRelevanceFilter}::int IS NULL OR relevance_score >= ${minRelevanceFilter})
+        AND (${dateFromFilter}::text IS NULL OR posted_at >= ${dateFromFilter})
+        AND (${dateToFilter}::text IS NULL OR posted_at <= ${dateToFilter})
+    `
+
+    const [data, countRows] = await Promise.all([dataQuery, countQuery])
+    const count = (countRows as { count: number }[])[0]?.count ?? 0
+
+    return NextResponse.json({ posts: data as Post[], total: count })
+  } catch (err) {
+    console.error('[posts GET] Failed to query posts:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-
-  return NextResponse.json({ posts: data, total: count })
 }

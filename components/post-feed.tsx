@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Post, PostStatus } from '@/lib/types'
+import { Post, PostStatus, SubredditGuideline } from '@/lib/types'
 import { PostCard } from './post-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,7 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [offset, setOffset] = useState(0)
+  const [guidelines, setGuidelines] = useState<Record<string, SubredditGuideline>>({})
   const [filters, setFilters] = useState<Filters>({
     status: defaultStatus ?? 'all',
     sortBy: 'relevance',
@@ -68,6 +69,26 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
     setOffset(0)
     fetchPosts(0, true)
   }, [fetchPosts])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/guidelines')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: SubredditGuideline[]) => {
+        if (cancelled || !Array.isArray(data)) return
+        const map: Record<string, SubredditGuideline> = {}
+        for (const g of data) {
+          if (g?.subreddit) map[g.subreddit.toLowerCase()] = g
+        }
+        setGuidelines(map)
+      })
+      .catch(() => {
+        // No guidelines available — cards simply render without a risk badge.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   function handleStatusChange(id: string, status: PostStatus) {
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)))
@@ -148,7 +169,12 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
       ) : (
         <div className="space-y-3">
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} onStatusChange={handleStatusChange} />
+            <PostCard
+              key={post.id}
+              post={post}
+              onStatusChange={handleStatusChange}
+              risk={guidelines[post.subreddit.toLowerCase()]?.risk}
+            />
           ))}
           {hasMore && (
             <div className="pt-2 text-center">

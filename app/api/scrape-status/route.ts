@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
+import { getOrCreateCampaign } from '@/lib/campaigns'
 
-const FREQUENCY_MS: Record<string, number> = {
-  '1h': 60 * 60 * 1000,
-  '2h': 2 * 60 * 60 * 1000,
-  '6h': 6 * 60 * 60 * 1000,
-  '12h': 12 * 60 * 60 * 1000,
+const FREQUENCY_HOURS: Record<string, number> = {
+  '1h': 1,
+  '2h': 2,
+  '6h': 6,
+  '12h': 12,
 }
 
 export async function GET() {
@@ -14,35 +15,35 @@ export async function GET() {
   if (result instanceof NextResponse) return result
   const userId = result
 
-  const [{ data: lastJob }, { data: config }, { count: newCount }] = await Promise.all([
-    supabaseAdmin
-      .from('scrape_jobs')
-      .select('started_at, finished_at, posts_found, error_message')
-      .eq('user_id', userId)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .single(),
-    supabaseAdmin
-      .from('config')
-      .select('scrape_frequency')
-      .eq('user_id', userId)
-      .single(),
-    supabaseAdmin
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('status', 'new'),
-  ])
+  const campaign = await getOrCreateCampaign(userId)
 
-  const frequency = config?.scrape_frequency ?? '2h'
-  const freqMs = FREQUENCY_MS[frequency]
-  const lastRun = lastJob?.started_at ?? null
-  const nextRun = lastRun ? new Date(new Date(lastRun).getTime() + freqMs).toISOString() : null
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [newCountRows, weekCountRows] = await Promise.all([
+    sql`
+      SELECT count(*)::int AS count FROM posts
+      WHERE user_id = ${userId} AND campaign_id = ${campaign.id} AND status = 'new'
+    `,
+    sql`
+      SELECT count(*)::int AS count FROM posts
+      WHERE user_id = ${userId} AND campaign_id = ${campaign.id} AND scraped_at >= ${weekAgo}
+    `,
+  ])
+  const newCount = (newCountRows as { count: number }[])[0]?.count ?? 0
+  const weekCount = (weekCountRows as { count: number }[])[0]?.count ?? 0
+
+  const frequency = campaign.scrape_frequency
+  const frequencyHours = FREQUENCY_HOURS[frequency] ?? 2
+  const lastScrapedAt = campaign.last_scraped_at ?? null
+  const nextScrapeAt = lastScrapedAt
+    ? new Date(new Date(lastScrapedAt).getTime() + frequencyHours * 60 * 60 * 1000).toISOString()
+    : null
 
   return NextResponse.json({
-    last_run: lastRun,
-    next_run: nextRun,
-    new_posts: newCount ?? 0,
-    last_job: lastJob ?? null,
+    last_scraped_at: lastScrapedAt,
+    next_scrape_at: nextScrapeAt,
+    new_count: newCount ?? 0,
+    week_count: weekCount ?? 0,
+    frequency,
   })
 }

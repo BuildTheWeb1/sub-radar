@@ -71,8 +71,42 @@ create table if not exists scrape_jobs (
 create index if not exists scrape_jobs_user_id_idx on scrape_jobs (user_id);
 create index if not exists scrape_jobs_started_at_idx on scrape_jobs (started_at desc);
 
--- Protect scrape_jobs from direct client access. All reads and writes go through
--- the server-side supabaseAdmin (service_role), which bypasses RLS. Enabling RLS
--- with no policies blocks every operation via the anon/authenticated REST API,
--- preventing users from deleting their own records to bypass the rate limiter.
-alter table public.scrape_jobs enable row level security;
+-- Campaigns table: multi-tenant, per-user scraper campaigns (successor to config)
+create table if not exists campaigns (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  name text not null default 'Default',
+  product_description text,
+  subreddits text[] not null default '{}',
+  keywords text[] not null default '{}',
+  scrape_frequency text not null default '2h' check (scrape_frequency in ('1h', '2h', '6h', '12h')),
+  min_relevance integer not null default 20,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists campaigns_user_id_idx on campaigns (user_id);
+
+-- Chunked cron cursor columns for campaigns (used by a later phase)
+alter table campaigns add column if not exists scrape_offset integer not null default 0;
+alter table campaigns add column if not exists last_scraped_at timestamptz;
+
+-- Link posts to the campaign that produced them
+alter table posts add column if not exists campaign_id uuid references campaigns(id) on delete cascade;
+create index if not exists posts_campaign_id_idx on posts (campaign_id);
+
+-- Subreddit guidelines table: cached per-subreddit self-promotion policy and
+-- ban-risk classification, derived from Reddit's public about.json/rules.json.
+create table if not exists subreddit_guidelines (
+  subreddit text primary key,
+  self_promo_policy text not null default 'unknown' check (self_promo_policy in ('allowed', 'limited', 'banned', 'unknown')),
+  links_allowed boolean not null default false,
+  min_karma integer,
+  min_account_age_days integer,
+  cadence_note text,
+  risk text not null default 'unknown' check (risk in ('green', 'caution', 'strict', 'unknown')),
+  rules jsonb not null default '[]',
+  public_description text,
+  subscribers integer,
+  fetched_at timestamptz not null default now()
+);

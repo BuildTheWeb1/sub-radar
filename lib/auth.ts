@@ -1,7 +1,7 @@
 import { NextAuthOptions, getServerSession } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { sql } from '@/lib/db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -20,17 +20,20 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
         try {
-          // Persist the user to Supabase so they're visible in the dashboard
-          await supabaseAdmin.from('users').upsert(
-            {
-              id: account.providerAccountId,
-              email: user.email,
-              name: user.name,
-              image: user.image,
-              last_seen_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          )
+          // Persist the user to the database so they're visible in the dashboard
+          const id = account.providerAccountId
+          const email = user.email
+          const name = user.name
+          const image = user.image
+          await sql`
+            INSERT INTO users (id, email, name, image, last_seen_at)
+            VALUES (${id}, ${email}, ${name}, ${image}, now())
+            ON CONFLICT (id) DO UPDATE SET
+              email = EXCLUDED.email,
+              name = EXCLUDED.name,
+              image = EXCLUDED.image,
+              last_seen_at = now()
+          `
         } catch (err) {
           // Don't block sign-in if DB write fails
           console.error('[auth] Failed to upsert user:', err)

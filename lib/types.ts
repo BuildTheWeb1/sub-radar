@@ -15,6 +15,22 @@ export interface Post {
   status: PostStatus
   posted_at: string
   scraped_at: string
+  campaign_id: string | null
+}
+
+export interface Campaign {
+  id: string
+  user_id: string
+  name: string
+  product_description: string | null
+  subreddits: string[]
+  keywords: string[]
+  scrape_frequency: '1h' | '2h' | '6h' | '12h'
+  min_relevance: number
+  scrape_offset: number
+  last_scraped_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Config {
@@ -57,4 +73,16 @@ export interface RedditPost {
   num_comments: number
   relevance_score: number
   posted_at: string
+}
+
+export interface SubredditGuideline {
+  subreddit: string
+  self_promo_policy: 'allowed' | 'limited' | 'banned' | 'unknown'
+  links_allowed: boolean
+  min_karma: number | null
+  min_account_age_days: number | null
+  cadence_note: string | null
+  risk: 'green' | 'caution' | 'strict' | 'unknown'
+  rules: { title: string; description: string }[]
+  fetched_at: string
 }

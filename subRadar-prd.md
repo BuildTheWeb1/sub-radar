@@ -66,7 +66,7 @@ The scraper runs in the **background on a schedule** — not on-demand. This sid
 | Backend | Next.js API Routes (TypeScript) | No Python runtime needed on Vercel |
 | Scraper | Rewritten in TypeScript | Reddit's API is plain HTTP — no Python libs required |
 | Cron Jobs | Vercel Cron | Built-in, no extra service |
-| Database | Supabase (Postgres) | Free tier, easy setup, real-time capable |
+| Database | Neon (serverless Postgres) | Generous free tier, easy setup |
 | Auth | Clerk or NextAuth | Simple user sessions |
 | AI replies (v2) | Claude API (claude-haiku-4-5) | Fast + cheap for reply drafts |
 | Hosting | Vercel | One-click deploy |
@@ -83,8 +83,8 @@ The Python script makes plain HTTP requests to `reddit.com/*.json` — no Python
 The scraper takes ~5 minutes due to rate limiting (2s between each request). On Vercel:
 - **Do NOT run scraper on-demand** (would timeout)
 - **Instead:** Vercel Cron triggers a scrape every 2 hours
-- The cron job runs through subreddits/keywords over time, writing results to Supabase
-- The dashboard reads from Supabase — instant load, no waiting
+- The cron job runs through subreddits/keywords over time, writing results to Neon
+- The dashboard reads from Neon — instant load, no waiting
 
 ---
 
@@ -233,7 +233,7 @@ Simple stats page:
 
 ---
 
-## 8. Data Model (Supabase)
+## 8. Data Model (Neon)
 
 ```sql
 -- Posts found by the scraper
@@ -278,7 +278,7 @@ replies (
 
 | Phase | What to build | Estimated effort |
 |---|---|---|
-| 1 | Supabase setup + scraper rewritten in TypeScript | 1 day |
+| 1 | Neon setup + scraper rewritten in TypeScript | 1 day |
 | 2 | Vercel Cron job running the scraper | half day |
 | 3 | Dashboard — post feed, filters, status actions | 2 days |
 | 4 | Settings page — keywords/subreddits config | 1 day |

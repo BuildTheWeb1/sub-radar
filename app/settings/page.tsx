@@ -10,12 +10,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
-import { Config } from '@/lib/types'
+import { Campaign, SubredditGuideline } from '@/lib/types'
+import { BanRiskBadge } from '@/components/ban-risk-badge'
+
+const SELF_PROMO_LABELS: Record<SubredditGuideline['self_promo_policy'], string> = {
+  allowed: 'Allowed',
+  limited: 'Limited',
+  banned: 'Banned',
+  unknown: 'Unknown',
+}
 
 export default function SettingsPage() {
-  const [config, setConfig] = useState<Config | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -27,11 +34,14 @@ export default function SettingsPage() {
   const [newSubreddit, setNewSubreddit] = useState('')
   const [newKeyword, setNewKeyword] = useState('')
 
+  const [guidelines, setGuidelines] = useState<SubredditGuideline[]>([])
+  const [guidelinesLoading, setGuidelinesLoading] = useState(true)
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     fetch('/api/config')
       .then((r) => r.json())
-      .then((data: Config) => {
-        setConfig(data)
+      .then((data: Campaign) => {
         setSubreddits(data.subreddits ?? [])
         setKeywords(data.keywords ?? [])
         setProductDescription(data.product_description ?? '')
@@ -40,6 +50,23 @@ export default function SettingsPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    fetch('/api/guidelines')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: SubredditGuideline[]) => setGuidelines(Array.isArray(data) ? data : []))
+      .catch(() => setGuidelines([]))
+      .finally(() => setGuidelinesLoading(false))
+  }, [])
+
+  function toggleRules(subreddit: string) {
+    setExpandedRules((prev) => {
+      const next = new Set(prev)
+      if (next.has(subreddit)) next.delete(subreddit)
+      else next.add(subreddit)
+      return next
+    })
+  }
 
   function addSubreddit() {
     const val = newSubreddit.trim().replace(/^r\//, '')
@@ -125,6 +152,83 @@ export default function SettingsPage() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+      </section>
+
+      {/* Subreddit guidelines */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Subreddit guidelines</h2>
+        {guidelinesLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ) : guidelines.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Add subreddits to see their posting guidelines.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {guidelines.map((g) => {
+              const isExpanded = expandedRules.has(g.subreddit)
+              return (
+                <div key={g.subreddit} className="rounded-md border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-sm font-medium">r/{g.subreddit}</span>
+                    <BanRiskBadge risk={g.risk} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>
+                      Self-promo: <span className="text-foreground">{SELF_PROMO_LABELS[g.self_promo_policy]}</span>
+                    </span>
+                    <span>
+                      Links allowed: <span className="text-foreground">{g.links_allowed ? 'Yes' : 'No'}</span>
+                    </span>
+                    {g.min_karma !== null && (
+                      <span>
+                        Min karma: <span className="text-foreground">{g.min_karma}</span>
+                      </span>
+                    )}
+                    {g.min_account_age_days !== null && (
+                      <span>
+                        Min account age: <span className="text-foreground">{g.min_account_age_days}d</span>
+                      </span>
+                    )}
+                  </div>
+                  {g.cadence_note && (
+                    <p className="text-xs text-muted-foreground">{g.cadence_note}</p>
+                  )}
+                  {g.rules.length > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleRules(g.subreddit)}
+                        className="flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                        {isExpanded ? 'Hide' : 'Show'} rules ({g.rules.length})
+                      </button>
+                      {isExpanded && (
+                        <ul className="mt-2 space-y-2 pl-1">
+                          {g.rules.map((rule, i) => (
+                            <li key={i} className="text-xs">
+                              <span className="font-medium">{rule.title}</span>
+                              {rule.description && (
+                                <p className="text-muted-foreground">{rule.description}</p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {/* Keywords */}

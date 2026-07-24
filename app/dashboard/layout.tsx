@@ -1,8 +1,22 @@
+import { getServerSession } from 'next-auth'
+import { redirect } from 'next/navigation'
+import { authOptions } from '@/lib/auth'
+import { getOrCreateCampaign } from '@/lib/campaigns'
 import { Sidebar } from '@/components/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { UserAvatar } from '@/components/user-avatar'
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
+
+  const campaign = await getOrCreateCampaign(session.user.id)
+  if (campaign.subreddits.length === 0 && campaign.keywords.length === 0) {
+    redirect('/onboarding')
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b px-6 h-12 flex items-center justify-between">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { BanRiskBadge, BanRisk } from '@/components/ban-risk-badge'
 import { Post, PostStatus } from '@/lib/types'
 import { ExternalLink, CheckCircle, EyeOff, Bookmark, BookmarkCheck } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -11,6 +12,7 @@ import { toast } from 'sonner'
 interface PostCardProps {
   post: Post
   onStatusChange?: (id: string, status: PostStatus) => void
+  risk?: BanRisk
 }
 
 function relevanceColor(score: number) {
@@ -25,7 +27,7 @@ function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outl
   return 'outline'
 }
 
-export function PostCard({ post, onStatusChange }: PostCardProps) {
+export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
   const [loading, setLoading] = useState<PostStatus | null>(null)
 
   async function updateStatus(status: PostStatus) {
@@ -69,6 +71,7 @@ export function PostCard({ post, onStatusChange }: PostCardProps) {
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
         <span className="font-semibold text-[#c2410c]">r/{post.subreddit}</span>
+        {risk && <BanRiskBadge risk={risk} />}
         <span>·</span>
         <span>{post.upvotes} pts</span>
         <span>·</span>
