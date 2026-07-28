@@ -29,7 +29,7 @@ export async function GET() {
   }
 
   try {
-    const ideas = await generateContentIdeas(posts)
+    const ideas = await generateContentIdeas(posts, campaign.product_description)
     return NextResponse.json(ideas)
   } catch (err) {
     console.error('[content-ideas GET] Failed to generate ideas:', err)

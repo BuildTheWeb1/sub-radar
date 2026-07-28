@@ -13,16 +13,28 @@ export interface OnboardingSuggestions {
 
 const MODEL = 'claude-haiku-4-5-20251001'
 
-const SYSTEM_PROMPT = `You are an expert at Reddit community research and customer discovery. Given a short product description, you identify where the product's target users actually hang out on Reddit and how they naturally talk about the problem the product solves.
+// Keyword shape matters more than it looks: each keyword is used BOTH as the `q=`
+// param of a Reddit search and as an escaped-literal regex match against a post's
+// title+body in scraper.ts scoreRelevance(). Conversational phrases ("how do I track
+// competitors on reddit") over-constrain the search and never match verbatim, so every
+// post scores 0 — which flattens ranking and empties the feed for any campaign whose
+// min_relevance is above 0. Hence the hard "1-4 words, no questions" rule below.
+//
+// Counts are deliberately modest: subreddits x keywords becomes the campaign's pair
+// list, and scrapeChunk() only gets through ~5-6 pairs per cron invocation, so 8x12
+// would take ~20 runs to cover once. 6x8 keeps a full cycle within a few runs.
+const SYSTEM_PROMPT = `You are an expert at Reddit community research and customer discovery. Given a short product description, you identify where the product's target users actually hang out on Reddit and the literal phrases they use when discussing the problem the product solves.
 
 Respond with STRICT JSON only — no markdown code fences, no prose before or after. The JSON must match exactly this shape:
 {"subreddits":[{"name":"...","reason":"..."}],"keywords":["..."]}
 
 Rules:
-- Provide 8-10 subreddit suggestions. Each "name" must be the subreddit name WITHOUT the "r/" prefix (e.g. "SaaS", not "r/SaaS").
+- Provide 5-6 subreddit suggestions, ordered most to least relevant. Each "name" must be the subreddit name WITHOUT the "r/" prefix (e.g. "SaaS", not "r/SaaS").
+- Only suggest subreddits you are confident actually exist and are active (roughly 20k+ members). Prefer a short, well-targeted list over padding it out with generic large subreddits. If you are unsure a subreddit exists, omit it.
 - Each "reason" is a single concise sentence explaining why that community's members are relevant to this specific product.
-- Only suggest real, plausible, active subreddits where this product's target users would actually discuss the relevant problem — not generic large subreddits unless truly relevant.
-- Provide 10-15 keyword phrases: natural language a real user would type when discussing the problem (e.g. "how do I track competitors on reddit"), NOT marketing or SEO terms.
+- Provide 6-8 keywords. Each keyword is a SHORT phrase of 1-4 words that would plausibly appear VERBATIM inside a Reddit post's title or body — they are used both as literal search queries and as exact substring matches for relevance scoring.
+- Keywords must NOT be questions or full sentences. Write "competitor tracking", not "how do I track competitors on reddit". Write "churn rate", not "my churn rate is too high".
+- Prefer the words the audience actually uses over marketing or SEO terms.
 - Do not include duplicate subreddits or keywords.
 - Output only the JSON object, nothing else.`
 
