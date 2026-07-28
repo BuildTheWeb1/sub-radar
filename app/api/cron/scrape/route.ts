@@ -6,10 +6,12 @@ import type { Campaign } from '@/lib/types'
 export const runtime = 'nodejs'
 export const maxDuration = 60 // 60 seconds (Vercel Hobby max)
 
-// How many subreddit x keyword pairs to process per campaign, per invocation.
-// Each pair now costs a headless-browser page navigation (~2-4s) instead of a
-// plain fetch(), so 8 pairs keeps a single invocation safely under 50s.
-const MAX_PAIRS_PER_CAMPAIGN = 8
+// Upper bound on subreddit x keyword pairs per campaign, per invocation. In practice
+// scrapeChunk's own wall-clock time budget (see TIME_BUDGET_MS in scraper.ts) is what
+// actually bounds a run — 15 is just a ceiling for the fast-path case. Empirically tuned
+// on Vercel: 20 with no time budget caused real 504s once fetch() made runs fast enough
+// to pull in more results (and therefore more sequential DB inserts below) than expected.
+const MAX_PAIRS_PER_CAMPAIGN = 15
 
 // How many campaigns to process in a single invocation. Kept small so the total
 // wall time (campaigns * pair-processing time) stays under ~50s.

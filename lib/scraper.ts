@@ -1,5 +1,5 @@
 import { RedditPost } from './types'
-import { fetchRedditJson } from './reddit-browser'
+import { fetchRedditJson } from './reddit-http'
 
 interface RedditChild {
   data: {
@@ -128,22 +128,45 @@ export interface ScrapeChunkResult {
   cycleComplete: boolean
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Delay between plain fetch() requests to Reddit. Playwright's page navigation used to
+// provide natural spacing between requests; a plain fetch() is fast enough that we need
+// an explicit delay here to avoid hammering Reddit back-to-back.
+const INTER_REQUEST_DELAY_MS = 1500
+
+// Wall-clock budget for a single scrapeChunk() call. Reddit's response time is variable
+// (retries on a 403/429 add their own backoff), so this is time-boxed rather than relying
+// solely on maxPairs — once the budget is spent, the chunk stops and reports how far it
+// got via nextOffset, to be picked up by the next invocation. Kept well under Vercel's
+// serverless function time limit (60s on Hobby): the caller still has to sequentially
+// insert every post found into Postgres afterward, which itself can take 20-30s for a
+// large batch, so this budget leaves that phase plenty of room.
+//
+// Deliberately kept BELOW fetchRedditJson()'s worst-case single-call cost (~13.5s: two
+// 6s request timeouts plus a 1.5s retry backoff — see reddit-http.ts). The budget check
+// only runs *between* pairs, so if it were set above that worst case, two stalled calls
+// (e.g. right as a cookie expires and every request starts blocking) could stack past the
+// intended budget before the loop notices. Below it, at most one stalled call can ever
+// slip through before the next check trips.
+const TIME_BUDGET_MS = 10_000
+
 /**
  * Process a bounded slice of the subreddit x keyword pair list, starting at `startOffset`
- * and covering at most `maxPairs` pairs. Designed to be called repeatedly (e.g. once per
- * cron invocation) so a large campaign's full pair list is eventually covered across
- * multiple runs without exceeding a serverless function's time limit.
+ * and covering at most `maxPairs` pairs (or until TIME_BUDGET_MS is spent, whichever comes
+ * first). Designed to be called repeatedly (e.g. once per cron invocation) so a large
+ * campaign's full pair list is eventually covered across multiple runs.
  *
- * `maxPairs` defaults to 8: each pair now costs a real headless-browser page
- * navigation (~2-4s) rather than a plain fetch(), and there's no artificial
- * inter-request delay (navigation itself provides natural spacing), so 8
- * pairs keeps a single invocation comfortably under ~50s.
+ * `maxPairs` defaults to 15: each pair costs a plain fetch() plus a ~1.5s inter-request
+ * delay; the time budget is what actually bounds a run when Reddit is slow to respond.
  */
 export async function scrapeChunk(
   subreddits: string[],
   keywords: string[],
   startOffset: number,
-  maxPairs = 8,
+  maxPairs = 15,
   onProgress?: (msg: string) => void
 ): Promise<ScrapeChunkResult> {
   const pairs = buildPairs(subreddits, keywords)
@@ -159,11 +182,21 @@ export async function scrapeChunk(
 
   const seen = new Set<string>()
   const results: RedditPost[] = []
+  const startedAt = Date.now()
 
-  let count = 0
+  let processed = 0
   for (const { subreddit, keyword } of slice) {
-    count++
-    onProgress?.(`[${safeStart + count}/${total}] r/${subreddit} → "${keyword}"`)
+    if (processed > 0 && Date.now() - startedAt >= TIME_BUDGET_MS) {
+      onProgress?.(`  ⏱ Time budget spent, stopping chunk early at ${processed}/${slice.length}`)
+      break
+    }
+
+    processed++
+    onProgress?.(`[${safeStart + processed}/${total}] r/${subreddit} → "${keyword}"`)
+
+    if (processed > 1) {
+      await sleep(INTER_REQUEST_DELAY_MS)
+    }
 
     try {
       const children = await fetchSubredditPosts(subreddit, keyword)
@@ -191,7 +224,7 @@ export async function scrapeChunk(
     }
   }
 
-  const endOffset = safeStart + slice.length
+  const endOffset = safeStart + processed
   const cycleComplete = endOffset >= total
   const nextOffset = cycleComplete ? 0 : endOffset
 

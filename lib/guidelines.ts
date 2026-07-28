@@ -1,12 +1,11 @@
 import 'server-only'
 import { sql } from '@/lib/db'
 import type { SubredditGuideline } from '@/lib/types'
-import { fetchRedditJson } from '@/lib/reddit-browser'
+import { fetchRedditJson } from '@/lib/reddit-http'
 
-// Browser navigations provide natural spacing between requests, so the
-// inter-subreddit delay is kept short — just enough to avoid hammering
-// Reddit back-to-back when several subs need a fresh fetch in one call.
-const INTER_SUBREDDIT_DELAY_MS = 2000 // delay between subs that require a network fetch
+// Delay between subs that require a fresh network fetch, to avoid hammering
+// Reddit back-to-back when several subs need fetching in one call.
+const INTER_SUBREDDIT_DELAY_MS = 2000
 const CACHE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function sleep(ms: number) {
@@ -118,10 +117,6 @@ export async function fetchSubredditGuideline(subreddit: string): Promise<Subred
 
   try {
     const about = await fetchRedditJson<RedditAboutResponse>(`/r/${sub}/about.json`)
-
-    // No extra artificial delay needed between the two calls: each browser
-    // page navigation already takes a couple of seconds, providing natural
-    // spacing between requests.
     const rulesRes = await fetchRedditJson<RedditRulesResponse>(`/r/${sub}/about/rules.json`)
 
     const rules = buildRulesFromResponse(rulesRes)
