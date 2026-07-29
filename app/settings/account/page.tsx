@@ -9,7 +9,7 @@ export default function AccountPage() {
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold">Account</h1>
+        <h1 className="text-2xl font-semibold">Account</h1>
         <p className="text-sm text-muted-foreground">Manage your account</p>
       </div>
 

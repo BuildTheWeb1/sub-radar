@@ -25,6 +25,7 @@ const SELF_PROMO_LABELS: Record<SubredditGuideline['self_promo_policy'], string>
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [subreddits, setSubreddits] = useState<string[]>([])
   const [keywords, setKeywords] = useState<string[]>([])
@@ -40,7 +41,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetch('/api/config')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('config_load_failed')
+        return r.json()
+      })
       .then((data: Campaign) => {
         setSubreddits(data.subreddits ?? [])
         setKeywords(data.keywords ?? [])
@@ -48,6 +52,7 @@ export default function SettingsPage() {
         setScrapeFrequency(data.scrape_frequency ?? '2h')
         setMinRelevance(data.min_relevance ?? 20)
       })
+      .catch(() => setLoadError('Could not load your settings. Try refreshing the page.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -121,9 +126,15 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold">Settings</h1>
+        <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Configure your Reddit monitoring</p>
       </div>
+
+      {loadError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
 
       {/* Subreddits */}
       <section className="space-y-3">

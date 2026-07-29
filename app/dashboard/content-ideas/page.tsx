@@ -56,7 +56,7 @@ export default function ContentIdeasPage() {
             <Lightbulb className="h-5 w-5 text-[#c2410c]" />
             Content Ideas
           </h1>
-          <p className="text-xs text-[#9a6b4b] mt-1 max-w-xl">
+          <p className="text-xs text-[#8a5d3f] mt-1 max-w-xl">
             We mine the Reddit posts already collected for your campaign to surface recurring
             audience pain points, plus ready-to-write post ideas for your own LinkedIn or
             Twitter.
@@ -89,7 +89,7 @@ export default function ContentIdeasPage() {
           <p className="text-sm font-semibold text-[#431407]">
             Couldn&apos;t generate content ideas
           </p>
-          <p className="text-xs text-[#9a6b4b]">Something went wrong. Please try again.</p>
+          <p className="text-xs text-[#8a5d3f]">Something went wrong. Please try again.</p>
           <Button variant="outline" size="sm" onClick={generate} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
             Retry
@@ -101,7 +101,7 @@ export default function ContentIdeasPage() {
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
           <Inbox className="h-10 w-10 text-[#fde8cc]" />
           <p className="text-sm font-semibold text-[#431407]">No posts to work with yet</p>
-          <p className="text-xs text-[#9a6b4b]">
+          <p className="text-xs text-[#8a5d3f]">
             Collect some posts first — run a scrape, then come back.
           </p>
         </div>
@@ -141,7 +141,7 @@ export default function ContentIdeasPage() {
                       <p className="font-medium text-sm leading-snug text-[#431407]">
                         {idea.hook}
                       </p>
-                      <Badge variant="outline" className="shrink-0 text-[#9a6b4b] border-[#fde8cc]">
+                      <Badge variant="outline" className="shrink-0 text-[#8a5d3f] border-[#fde8cc]">
                         {idea.format}
                       </Badge>
                     </div>
@@ -158,7 +158,7 @@ export default function ContentIdeasPage() {
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
           <Lightbulb className="h-10 w-10 text-[#fde8cc]" />
           <p className="text-sm font-semibold text-[#431407]">Ready when you are</p>
-          <p className="text-xs text-[#9a6b4b]">
+          <p className="text-xs text-[#8a5d3f]">
             Click &ldquo;Generate content ideas&rdquo; to mine your collected posts.
           </p>
         </div>

@@ -164,7 +164,7 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
           <Inbox className="h-10 w-10 text-[#fde8cc]" />
           <p className="text-sm font-semibold text-[#431407]">No posts found</p>
-          <p className="text-xs text-[#9a6b4b]">Adjust filters or wait for the next scrape.</p>
+          <p className="text-xs text-[#8a5d3f]">Adjust filters or wait for the next scrape.</p>
         </div>
       ) : (
         <div className="space-y-3">

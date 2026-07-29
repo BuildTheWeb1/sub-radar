@@ -96,7 +96,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#9a6b4b] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#8a5d3f] hover:bg-[#fff7ed]"
           disabled={post.status === 'replied' || loading !== null}
           onClick={() => updateStatus('replied')}
         >
@@ -106,7 +106,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#9a6b4b] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#8a5d3f] hover:bg-[#fff7ed]"
           disabled={post.status === 'ignored' || loading !== null}
           onClick={() => updateStatus('ignored')}
         >
@@ -116,7 +116,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#9a6b4b] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#8a5d3f] hover:bg-[#fff7ed]"
           disabled={loading !== null}
           onClick={() => updateStatus(post.status === 'saved' ? 'new' : 'saved')}
         >

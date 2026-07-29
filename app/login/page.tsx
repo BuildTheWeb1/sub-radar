@@ -20,11 +20,6 @@ export default function LoginPage() {
             <span className="font-bold text-[#fed7aa] tracking-tight text-lg">SubRadar</span>
           </div>
 
-          {/* Eyebrow */}
-          <p className="text-[#ea580c] text-xs font-semibold uppercase tracking-widest mb-4">
-            Reddit lead intelligence
-          </p>
-
           {/* Headline */}
           <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4">
             Find customers before your competitors do.
@@ -55,7 +50,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm space-y-6">
           <div className="space-y-1.5">
             <h2 className="text-2xl font-bold text-[#1c0a00]">Welcome back</h2>
-            <p className="text-sm text-[#9a6b4b]">Sign in to your SubRadar account to continue.</p>
+            <p className="text-sm text-[#8a5d3f]">Sign in to your SubRadar account to continue.</p>
           </div>
 
           <button
@@ -72,10 +67,10 @@ export default function LoginPage() {
             Continue with Google
           </button>
 
-          <p className="text-center text-xs text-[#c4a882]">Access is by invitation only</p>
+          <p className="text-center text-xs text-[#8a5d3f]">Access is by invitation only</p>
 
           <div className="border-t border-[#fde8cc] pt-4">
-            <p className="text-center text-xs text-[#9a6b4b]">
+            <p className="text-center text-xs text-[#8a5d3f]">
               By signing in you agree to our{' '}
               <a href="#" className="underline hover:text-[#431407]">Terms of Service</a>
               {' '}and{' '}

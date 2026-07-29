@@ -49,7 +49,7 @@ export function UserAvatar() {
           <DropdownMenuLabel>
             <div className="flex flex-col gap-0.5">
               {name && <span className="font-semibold text-[#1c0a00] text-sm">{name}</span>}
-              <span className="text-xs text-[#9a6b4b] truncate">{email}</span>
+              <span className="text-xs text-[#8a5d3f] truncate">{email}</span>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>

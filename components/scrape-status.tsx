@@ -125,7 +125,7 @@ export function ScrapeStatus() {
         </div>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className="bg-[#fde8cc] text-[#c2410c] font-bold text-xs px-2 py-0.5 rounded-full">
+            <span className="bg-[#fde8cc] text-[#a8380a] font-bold text-xs px-2 py-0.5 rounded-full">
               {status?.new_count ?? 0}
             </span>
             <span>unreviewed</span>
