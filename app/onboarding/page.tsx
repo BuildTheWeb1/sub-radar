@@ -4,14 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/brand-mark'
-import { X, Plus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Campaign } from '@/lib/types'
-
-interface SubredditSuggestion {
-  name: string
-  reason: string
-}
+import { SubredditSuggester } from '@/components/radar/subreddit-suggester'
+import { SubredditAdder } from '@/components/radar/subreddit-adder'
+import { KeywordEditor } from '@/components/radar/keyword-editor'
+import { X } from 'lucide-react'
 
 const MIN_DESCRIPTION_LENGTH = 20
 const MAX_SUBREDDITS = 10
@@ -21,104 +18,37 @@ export default function OnboardingPage() {
 
   const [step, setStep] = useState<1 | 2>(1)
   const [productDescription, setProductDescription] = useState('')
-  const [suggesting, setSuggesting] = useState(false)
-  const [suggestError, setSuggestError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const [suggestions, setSuggestions] = useState<SubredditSuggestion[]>([])
-  const [selectedSubreddits, setSelectedSubreddits] = useState<Set<string>>(new Set())
+  const [subreddits, setSubreddits] = useState<string[]>([])
   const [keywords, setKeywords] = useState<string[]>([])
-  const [newSubreddit, setNewSubreddit] = useState('')
-  const [newKeyword, setNewKeyword] = useState('')
+  const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([])
 
-  const canSubmitDescription = productDescription.trim().length >= MIN_DESCRIPTION_LENGTH
+  const canContinue = productDescription.trim().length >= MIN_DESCRIPTION_LENGTH
+  const remainingSlots = Math.max(0, MAX_SUBREDDITS - subreddits.length)
 
-  async function handleGetSuggestions() {
-    if (!canSubmitDescription) return
-    setSuggesting(true)
-    setSuggestError(null)
-    try {
-      const res = await fetch('/api/onboarding/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productDescription }),
-      })
-      if (!res.ok) {
-        throw new Error('suggestion_failed')
-      }
-      const data: { subreddits: SubredditSuggestion[]; keywords: string[] } = await res.json()
-      setSuggestions(data.subreddits ?? [])
-      setSelectedSubreddits(new Set((data.subreddits ?? []).slice(0, MAX_SUBREDDITS).map((s) => s.name)))
-      setKeywords(data.keywords ?? [])
-      setStep(2)
-    } catch {
-      setSuggestError('We could not generate suggestions right now. You can retry, or continue and add subreddits and keywords manually.')
-    } finally {
-      setSuggesting(false)
-    }
-  }
-
-  function skipToManualEntry() {
-    setSuggestError(null)
-    setSuggestions([])
-    setSelectedSubreddits(new Set())
-    setKeywords([])
-    setStep(2)
-  }
-
-  function toggleSubreddit(name: string) {
-    setSelectedSubreddits((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) {
-        next.delete(name)
-      } else {
-        if (next.size >= MAX_SUBREDDITS) {
-          toast.error(`You can monitor up to ${MAX_SUBREDDITS} subreddits`)
-          return prev
-        }
-        next.add(name)
-      }
-      return next
+  function addSubreddits(names: string[]) {
+    setSubreddits((prev) => {
+      const existing = new Set(prev.map((s) => s.toLowerCase()))
+      const additions = names.filter((n) => !existing.has(n.toLowerCase()))
+      return [...prev, ...additions].slice(0, MAX_SUBREDDITS)
     })
   }
 
-  function addSubreddit() {
-    const val = newSubreddit.trim().replace(/^r\//, '')
-    if (!val) return
-    if (!selectedSubreddits.has(val) && selectedSubreddits.size >= MAX_SUBREDDITS) {
-      toast.error(`You can monitor up to ${MAX_SUBREDDITS} subreddits`)
+  async function handleFinish() {
+    if (subreddits.length === 0 || keywords.length === 0) {
+      toast.error('Pick at least one subreddit and one keyword so there is something to search')
       return
     }
-    if (!suggestions.some((s) => s.name === val)) {
-      setSuggestions((s) => [...s, { name: val, reason: 'Added manually' }])
-    }
-    setSelectedSubreddits((prev) => new Set(prev).add(val))
-    setNewSubreddit('')
-  }
-
-  function addKeyword() {
-    const val = newKeyword.trim().toLowerCase()
-    if (!val || keywords.includes(val) || keywords.length >= 20) return
-    setKeywords((k) => [...k, val])
-    setNewKeyword('')
-  }
-
-  async function handleSaveAndContinue() {
     setSaving(true)
     try {
-      const current: Campaign = await fetch('/api/config').then((r) => r.json())
-
-      const finalSubreddits = Array.from(selectedSubreddits)
       const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: current.name,
-          subreddits: finalSubreddits,
+          subreddits,
           keywords,
           product_description: productDescription,
-          scrape_frequency: current.scrape_frequency,
-          min_relevance: current.min_relevance,
         }),
       })
 
@@ -127,11 +57,11 @@ export default function OnboardingPage() {
         throw new Error(err.error || 'Failed to save')
       }
 
-      toast.success('Setup complete')
       router.push('/dashboard')
+      // Deliberately not clearing `saving` here: the button stays disabled through
+      // the navigation so a second click can't fire another save.
     } catch (err) {
       toast.error((err as Error).message || 'Failed to save')
-    } finally {
       setSaving(false)
     }
   }
@@ -144,151 +74,102 @@ export default function OnboardingPage() {
           <span className="font-bold text-brand-text-strong tracking-tight text-sm">SubRadar</span>
         </div>
 
-        <div>
-          <h1 className="text-2xl font-semibold">Let&apos;s set up your monitoring</h1>
-          <p className="text-sm text-muted-foreground">
-            Step {step} of 2 — {step === 1 ? 'Describe your product' : 'Review and confirm'}
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold text-brand-text-strong">Set up your radar</h1>
+          <p className="text-sm text-brand-text-muted">
+            Step {step} of 2 — {step === 1 ? 'describe what you sell' : 'choose what to watch'}
           </p>
-        </div>
+        </header>
 
         {step === 1 && (
           <div className="space-y-4 animate-fade-up">
             <section className="space-y-2">
-              <h2 className="text-sm font-medium">Product description</h2>
+              <h2 className="text-base font-semibold text-brand-text-strong">What do you sell?</h2>
+              <p className="text-sm text-brand-text-muted max-w-prose">
+                Who it&apos;s for and what problem it solves. This is what we use to find the
+                communities your buyers are already posting in.
+              </p>
               <textarea
                 value={productDescription}
                 onChange={(e) => setProductDescription(e.target.value)}
                 rows={5}
-                placeholder="Describe what your product does and who it's for (at least 20 characters)…"
-                className="w-full rounded-md border border-brand-surface-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                placeholder="A time-tracking app for freelance designers who bill hourly and keep forgetting to start the timer…"
+                aria-label="Product description"
+                className="w-full rounded-md border border-brand-surface-border bg-white px-3 py-2.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
-              <p className="text-xs text-brand-text-muted">
-                {productDescription.trim().length}/{MIN_DESCRIPTION_LENGTH} characters minimum
+              <p className="text-xs text-brand-text-muted tabular-nums">
+                {productDescription.trim().length} / {MIN_DESCRIPTION_LENGTH} characters minimum
               </p>
             </section>
 
-            {suggestError && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {suggestError}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleGetSuggestions} disabled={!canSubmitDescription || suggesting}>
-                {suggesting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating suggestions…
-                  </>
-                ) : (
-                  'Get suggestions'
-                )}
-              </Button>
-              <Button variant="outline" onClick={skipToManualEntry} disabled={suggesting}>
-                Skip &amp; enter manually
-              </Button>
-            </div>
+            <Button onClick={() => setStep(2)} disabled={!canContinue}>
+              Continue
+            </Button>
           </div>
         )}
 
         {step === 2 && (
-          <div className="space-y-8 animate-fade-up">
-            {suggestError && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {suggestError}
-              </div>
-            )}
-
-            {/* Subreddits */}
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium">
-                Subreddits{' '}
-                <span className="text-brand-text-muted font-normal">
-                  ({selectedSubreddits.size}/{MAX_SUBREDDITS} selected)
+          <div className="space-y-10 animate-fade-up">
+            <section className="space-y-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-semibold text-brand-text-strong">Subreddits</h2>
+                <span className="text-xs tabular-nums text-brand-text-muted">
+                  {subreddits.length}/{MAX_SUBREDDITS}
                 </span>
-              </h2>
-              {suggestions.length === 0 && (
-                <p className="text-sm text-brand-text-muted">
-                  No suggestions yet — add subreddits manually below.
-                </p>
-              )}
-              <div className="space-y-2">
-                {suggestions.map((s) => {
-                  const checked = selectedSubreddits.has(s.name)
-                  return (
-                    <label
-                      key={s.name}
-                      className="flex items-start gap-3 rounded-md border border-brand-surface-border px-3 py-2.5 cursor-pointer hover:bg-brand-surface"
+              </div>
+
+              <SubredditSuggester
+                productDescription={productDescription}
+                existing={subreddits}
+                remainingSlots={remainingSlots}
+                onAdd={addSubreddits}
+                onKeywords={(kws) => {
+                  setKeywordSuggestions(kws)
+                  // Prefill on the first suggestion run so a user who accepts the
+                  // defaults lands on a working setup rather than an empty one.
+                  setKeywords((prev) => (prev.length === 0 ? kws.slice(0, 8) : prev))
+                }}
+              />
+
+              {subreddits.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {subreddits.map((sub) => (
+                    <li
+                      key={sub}
+                      className="chip-enter inline-flex items-center gap-1.5 rounded-full border border-brand-surface-border bg-white px-3 py-1 text-xs font-medium"
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSubreddit(s.name)}
-                        className="mt-0.5 accent-brand"
-                      />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium">r/{s.name}</div>
-                        <div className="text-xs text-brand-text-muted">{s.reason}</div>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={newSubreddit}
-                  onChange={(e) => setNewSubreddit(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSubreddit())}
-                  placeholder="Add a subreddit, e.g. loseit"
-                  className="flex-1 min-w-0 rounded-md border border-brand-surface-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <Button size="sm" variant="outline" onClick={addSubreddit}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+                      r/{sub}
+                      <button
+                        onClick={() => setSubreddits((prev) => prev.filter((s) => s !== sub))}
+                        aria-label={`Remove r/${sub}`}
+                        className="text-brand-text-muted transition-colors hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <SubredditAdder
+                existing={subreddits}
+                onAdd={(name) => addSubreddits([name])}
+                disabled={remainingSlots === 0}
+              />
             </section>
 
-            {/* Keywords */}
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium">
-                Keywords <span className="text-brand-text-muted font-normal">({keywords.length}/20)</span>
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {keywords.map((kw) => (
-                  <span
-                    key={kw}
-                    className="chip-enter inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium"
-                  >
-                    {kw}
-                    <button onClick={() => setKeywords((k) => k.filter((x) => x !== kw))} className="hover:text-destructive">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-                {keywords.length === 0 && (
-                  <p className="text-sm text-brand-text-muted">No keywords yet — add some below.</p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                  placeholder="e.g. mental clarity"
-                  className="flex-1 min-w-0 rounded-md border border-brand-surface-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <Button size="sm" variant="outline" onClick={addKeyword} disabled={keywords.length >= 20}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </section>
+            <KeywordEditor
+              keywords={keywords}
+              onChange={setKeywords}
+              suggestions={keywordSuggestions}
+            />
 
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setStep(1)} disabled={saving}>
                 Back
               </Button>
-              <Button onClick={handleSaveAndContinue} disabled={saving}>
-                {saving ? 'Saving…' : 'Save & continue'}
+              <Button onClick={handleFinish} disabled={saving}>
+                {saving ? 'Saving…' : 'Start watching'}
               </Button>
             </div>
           </div>

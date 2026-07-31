@@ -56,10 +56,14 @@ export async function GET(req: NextRequest) {
   // Dynamic filter combos handled via NULL-safe predicates in a single query.
   let campaigns: Campaign[] = []
   try {
+    // Oldest-scraped first. With MAX_CAMPAIGNS_PER_RUN capped at 1, an unordered
+    // scan would let Postgres' heap order decide who gets served, and a campaign
+    // could stay unpicked indefinitely while others are also due.
     campaigns = (await sql`
       SELECT * FROM campaigns
       WHERE (${targetCampaignId}::text IS NULL OR id = ${targetCampaignId})
         AND (${targetUserId}::text IS NULL OR user_id = ${targetUserId})
+      ORDER BY last_scraped_at ASC NULLS FIRST
     `) as Campaign[]
   } catch (campaignError) {
     console.error('[cron] Failed to load campaigns:', campaignError)
@@ -69,32 +73,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No campaign found' }, { status: 404 })
   }
 
-  // Only campaigns that are "due" get scraped this run: mid-cycle (scrape_offset > 0),
-  // never scraped, or enough time elapsed since last_scraped_at per their frequency.
-  // Campaigns that aren't due are simply skipped — not an error.
-  const dueCampaigns = campaigns.filter(isCampaignDue)
-
-  // If a manual trigger targeted a specific campaign that turned out not to be due,
-  // close out its pre-created scrape_jobs row so the client's status polling
-  // (which waits for finished_at) doesn't hang indefinitely.
-  const notDueTargeted = campaigns.filter(
-    (c) => !isCampaignDue(c) && preCreatedJobId && targetCampaignId === c.id
-  )
-  for (const campaign of notDueTargeted) {
-    const frequencyHours = FREQUENCY_HOURS[campaign.scrape_frequency] ?? 2
-    try {
-      await sql`
-        UPDATE scrape_jobs
-        SET
-          finished_at = now(),
-          posts_found = 0,
-          error_message = ${`Not due yet — next scrape available ${frequencyHours}h after the last completed scrape`}
-        WHERE id = ${preCreatedJobId}
-      `
-    } catch (err) {
-      console.error(`[cron] Failed to close out not-due job ${preCreatedJobId}:`, err)
-    }
-  }
+  // Scheduled runs only pick up campaigns that are "due": mid-cycle
+  // (scrape_offset > 0), never scraped, or enough time elapsed per their frequency.
+  //
+  // A manual trigger is exempt. The user pressed "Run scan"; refusing because the
+  // configured interval has not elapsed made the button a no-op that then reported
+  // itself as a failed scan. The trigger route's own 10-minute rate limit is what
+  // guards against abuse here, and it already ran before we got called.
+  const isManualTrigger = Boolean(preCreatedJobId && targetCampaignId)
+  const dueCampaigns = isManualTrigger ? campaigns : campaigns.filter(isCampaignDue)
 
   // Bound per-invocation time: only process a limited number of campaigns per run.
   const campaignsToRun = dueCampaigns.slice(0, MAX_CAMPAIGNS_PER_RUN)
@@ -112,7 +99,7 @@ export async function GET(req: NextRequest) {
     } else {
       try {
         const rows = (await sql`
-          INSERT INTO scrape_jobs (user_id) VALUES (${userId}) RETURNING *
+          INSERT INTO scrape_jobs (user_id, campaign_id) VALUES (${userId}, ${campaign.id}) RETURNING *
         `) as { id: string }[]
         jobId = rows[0]?.id
       } catch (err) {
@@ -120,14 +107,39 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Seed the job with where this cycle is resuming from, so the dashboard shows a
+    // truthful cycle position from the first poll instead of jumping from 0 once the
+    // first pair lands. `scrape_offset` is the cycle-wide cursor, not a per-run one.
+    const pairsTotalEstimate = campaign.subreddits.length * campaign.keywords.length
+    if (jobId) {
+      try {
+        await sql`
+          UPDATE scrape_jobs
+          SET pairs_total = ${pairsTotalEstimate}, pairs_done = ${campaign.scrape_offset}
+          WHERE id = ${jobId}
+        `
+      } catch (err) {
+        console.error(`[cron] Failed to seed progress for job ${jobId}:`, err)
+      }
+    }
+
     try {
-      const { posts, nextOffset, cycleComplete } = await scrapeChunk(
+      const { posts, nextOffset, cycleComplete, pairsTotal } = await scrapeChunk(
         campaign.subreddits,
         campaign.keywords,
         campaign.scrape_offset,
         MAX_PAIRS_PER_CAMPAIGN,
         (msg) => {
           console.log(`[${userId}/${campaign.id}] ${msg}`)
+        },
+        async ({ index, total, subreddit, keyword }) => {
+          if (!jobId) return
+          await sql`
+            UPDATE scrape_jobs
+            SET pairs_done = ${index}, pairs_total = ${total},
+                current_subreddit = ${subreddit}, current_keyword = ${keyword}
+            WHERE id = ${jobId}
+          `
         }
       )
 
@@ -178,7 +190,8 @@ export async function GET(req: NextRequest) {
         try {
           await sql`
             UPDATE scrape_jobs
-            SET finished_at = now(), posts_found = ${inserted}
+            SET finished_at = now(), posts_found = ${inserted}, pairs_total = ${pairsTotal},
+                current_subreddit = NULL, current_keyword = NULL
             WHERE id = ${jobId}
           `
         } catch (err) {
@@ -195,7 +208,8 @@ export async function GET(req: NextRequest) {
         try {
           await sql`
             UPDATE scrape_jobs
-            SET finished_at = now(), error_message = ${message}
+            SET finished_at = now(), error_message = ${message},
+                current_subreddit = NULL, current_keyword = NULL
             WHERE id = ${jobId}
           `
         } catch (updateErr) {

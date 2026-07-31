@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
+import { STALLED_MARKER } from '@/lib/scrape-jobs'
 
 const RATE_LIMIT_MS = 10 * 60 * 1000 // 10 minutes
 
@@ -43,11 +44,16 @@ export async function POST(req: NextRequest) {
   // Rate limit: atomically insert a job record, then check if there was a recent one.
   // We insert the job here (not in the cron route) so concurrent requests see it
   // immediately, closing the TOCTOU race condition.
+  //
+  // Jobs the status sweep judged dead are excluded: their invocation never did the
+  // work, so letting one hold the lock would tell the user to retry a stalled scan
+  // and then refuse them for the remainder of the ten minutes.
   let lastJob: { started_at: string } | null = null
   try {
     const rows = (await sql`
       SELECT started_at FROM scrape_jobs
       WHERE user_id = ${userId}
+        AND (error_message IS NULL OR error_message <> ${STALLED_MARKER})
       ORDER BY started_at DESC
       LIMIT 1
     `) as { started_at: string }[]
@@ -73,7 +79,7 @@ export async function POST(req: NextRequest) {
   let job: { id: string } | null = null
   try {
     const rows = (await sql`
-      INSERT INTO scrape_jobs (user_id) VALUES (${userId}) RETURNING *
+      INSERT INTO scrape_jobs (user_id, campaign_id) VALUES (${userId}, ${campaignId}) RETURNING *
     `) as { id: string }[]
     job = rows[0] ?? null
   } catch (jobError) {

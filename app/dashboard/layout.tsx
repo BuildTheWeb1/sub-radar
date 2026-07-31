@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getOrCreateCampaign } from '@/lib/campaigns'
 import { Sidebar } from '@/components/sidebar'
-import { Toaster } from '@/components/ui/sonner'
+import { ScraperBar } from '@/components/scraper-bar'
 import { UserAvatar } from '@/components/user-avatar'
 import { BrandMark } from '@/components/brand-mark'
 
@@ -27,11 +27,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <UserAvatar />
       </header>
+      {/* Directly under the header so the scraper's state is on screen at every
+          breakpoint and on every route — previously it was a card in the desktop
+          sidebar, which meant mobile had no way to see it at all. */}
+      <ScraperBar />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-8">
         <Sidebar />
         <main className="flex-1 min-w-0 py-6 pb-20 md:pb-6">{children}</main>
       </div>
-      <Toaster />
     </div>
   )
 }

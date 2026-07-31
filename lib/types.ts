@@ -48,10 +48,38 @@ export interface Config {
 export interface ScrapeJob {
   id: string
   user_id: string
+  campaign_id: string | null
   started_at: string
   finished_at: string | null
   posts_found: number
   error_message: string | null
+  /** Total subreddit x keyword pairs in the campaign's full cycle. */
+  pairs_total: number
+  /** Pairs completed so far in the current cycle, across all invocations. */
+  pairs_done: number
+  current_subreddit: string | null
+  current_keyword: string | null
+}
+
+/** Shape returned by /api/scrape-status and consumed by the ScraperBar. */
+export interface ScrapeStatus {
+  running: boolean
+  /** True when a job never closed out — the invocation died mid-scrape. */
+  stalled: boolean
+  last_scraped_at: string | null
+  next_scrape_at: string | null
+  cadence: string
+  pairs_done: number
+  pairs_total: number
+  current_subreddit: string | null
+  current_keyword: string | null
+  /** Posts stored by the most recently finished job. */
+  last_posts_found: number
+  last_finished_at: string | null
+  last_error: string | null
+  new_count: number
+  week_count: number
+  frequency: string
 }
 
 export interface Reply {
@@ -84,5 +112,19 @@ export interface SubredditGuideline {
   cadence_note: string | null
   risk: 'green' | 'caution' | 'strict' | 'unknown'
   rules: { title: string; description: string }[]
+  subscribers: number | null
+  public_description: string | null
   fetched_at: string
+}
+
+/** Result of checking a subreddit name a user typed or an LLM suggested. */
+export interface SubredditCheck {
+  name: string
+  /** null when Reddit could not be reached — absence of proof, not proof of absence. */
+  exists: boolean | null
+  subscribers: number | null
+  public_description: string | null
+  risk: SubredditGuideline['risk']
+  self_promo_policy: SubredditGuideline['self_promo_policy']
+  error: string | null
 }

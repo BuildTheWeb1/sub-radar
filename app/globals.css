@@ -57,6 +57,33 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Motion tokens. Exponential ease-out only: real objects decelerate smoothly,
+     so interface motion settles rather than arriving at constant speed. No
+     bounce or elastic anywhere — linear is reserved for progress indicators,
+     where a constant rate is the honest reading of a constant rate of work. */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Durations, by what the motion is doing rather than by number. */
+  --duration-state: 180ms; /* hover, focus, colour shifts */
+  --duration-reveal: 220ms; /* disclosure and message slides */
+  --duration-entrance: 280ms; /* content arriving */
+
+  /* Make the tokens the default for every `transition-*` utility, so a plain
+     `transition-colors` is already on-system and nothing has to remember to
+     append an easing class. Overrides stay available where motion differs
+     (the progress bar runs linear). */
+  --default-transition-duration: var(--duration-state);
+  --default-transition-timing-function: var(--ease-out-quint);
+}
+
+@utility ease-out-quint {
+  transition-timing-function: var(--ease-out-quint);
+}
+
+@utility ease-out-expo {
+  transition-timing-function: var(--ease-out-expo);
 }
 
 :root {
@@ -132,15 +159,18 @@
 }
 
 .animate-fade-up {
-  animation: fade-up 300ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: fade-up var(--duration-entrance) var(--ease-out-quint) both;
 }
 
-/* Motion: disclosure reveal (Settings "Show rules"). Animates grid-template-rows, never height. */
+/* Motion: disclosure reveal (subreddit rules). Animates grid-template-rows, never
+   height — animating height thrashes layout on every frame. */
 .disclosure-rows {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition: grid-template-rows 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 150ms ease;
+  transition:
+    grid-template-rows var(--duration-reveal) var(--ease-out-quint),
+    opacity var(--duration-state) ease-out;
 }
 .disclosure-rows[data-open="true"] {
   grid-template-rows: 1fr;
@@ -151,12 +181,34 @@
   min-height: 0;
 }
 
+/* Motion: validation messages under an input. Same grid-rows technique as the
+   disclosure — the message pushes the content below it down, and doing that as a
+   jump reads as a layout bug rather than as an answer to what you just typed. */
+.slide-message {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--duration-reveal) var(--ease-out-quint),
+    opacity var(--duration-state) ease-out;
+}
+.slide-message[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.slide-message > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* Motion: new tag/chip entrance (subreddit + keyword chips in onboarding and settings).
    Rare, user-typed additions only — never applied to a whole re-rendered list. */
 .chip-enter {
   opacity: 1;
   scale: 1;
-  transition: opacity 150ms ease-out, scale 150ms ease-out;
+  transition:
+    opacity var(--duration-state) var(--ease-out-quint),
+    scale var(--duration-state) var(--ease-out-quint);
 }
 
 @starting-style {
@@ -166,14 +218,42 @@
   }
 }
 
+/* Motion: the scraper's "work is happening right now" signal. Mounted only while a
+   scrape job is genuinely open — a status dot that breathes on an idle scraper would
+   be decoration dressed as information. Opacity only, so it never triggers layout. */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-breathe {
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+/* Slower than Tailwind's default spin: this rides alongside a multi-minute scrape,
+   so a fast spinner would read as urgency the task doesn't have. */
+.animate-spin-slow {
+  animation: spin 2s linear infinite;
+}
+
+/* Non-negotiable: every animation above has a still equivalent. Content stays
+   visible and state stays legible — only the movement goes away. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-up {
+  .animate-fade-up,
+  .animate-breathe,
+  .animate-spin-slow {
     animation: none;
   }
   .chip-enter {
-    transition: opacity 150ms ease-out;
+    transition: opacity var(--duration-state) ease-out;
   }
-  .disclosure-rows {
-    transition: opacity 150ms ease;
+  .disclosure-rows,
+  .slide-message {
+    transition: opacity var(--duration-state) ease-out;
   }
 }

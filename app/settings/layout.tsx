@@ -1,5 +1,4 @@
 import { Sidebar } from '@/components/sidebar'
-import { Toaster } from '@/components/ui/sonner'
 import { UserAvatar } from '@/components/user-avatar'
 import { BrandMark } from '@/components/brand-mark'
 
@@ -17,7 +16,6 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <Sidebar />
         <main className="flex-1 min-w-0 py-6 pb-20 md:pb-6">{children}</main>
       </div>
-      <Toaster />
     </div>
   )
 }

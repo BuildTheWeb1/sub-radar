@@ -36,6 +36,21 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * Carries Reddit's HTTP status alongside the message. Callers that need to tell
+ * "this subreddit does not exist" (404) apart from "Reddit is refusing us right
+ * now" (403/429/timeout) cannot do that by string-matching the message.
+ */
+export class RedditHttpError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'RedditHttpError'
+    this.status = status
+  }
+}
+
 async function requestJson<T>(url: string): Promise<T> {
   const headers = { ...REQUEST_HEADERS }
   if (process.env.REDDIT_COOKIE) {
@@ -45,18 +60,18 @@ async function requestJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
 
   if (res.status === 403 || res.status === 429) {
-    throw new Error(`Reddit blocked (${res.status})`)
+    throw new RedditHttpError(`Reddit blocked (${res.status})`, res.status)
   }
 
   if (!res.ok) {
-    throw new Error(`Reddit request failed (${res.status}) for ${url}`)
+    throw new RedditHttpError(`Reddit request failed (${res.status}) for ${url}`, res.status)
   }
 
   const body = await res.text()
   try {
     return JSON.parse(body) as T
   } catch {
-    throw new Error(`Reddit blocked (${res.status}): non-JSON response for ${url}`)
+    throw new RedditHttpError(`Reddit blocked (${res.status}): non-JSON response for ${url}`, res.status)
   }
 }
 

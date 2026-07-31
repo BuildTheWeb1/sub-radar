@@ -126,6 +126,24 @@ export interface ScrapeChunkResult {
   posts: RedditPost[]
   nextOffset: number
   cycleComplete: boolean
+  /** Size of the campaign's full pair list, so callers can report cycle progress. */
+  pairsTotal: number
+}
+
+/**
+ * Structured, per-pair progress. Distinct from `onProgress`, which is free-form
+ * log text: this is the machine-readable form the cron route persists to
+ * scrape_jobs so the dashboard can show which search is running right now.
+ *
+ * Awaited inside the scrape loop, so a slow handler eats into TIME_BUDGET_MS —
+ * keep it to a single cheap write. `index` is 1-based and absolute within the
+ * cycle (not within this chunk), matching `pairs_done` semantics.
+ */
+export interface ScrapePairProgress {
+  index: number
+  total: number
+  subreddit: string
+  keyword: string
 }
 
 function sleep(ms: number) {
@@ -167,13 +185,14 @@ export async function scrapeChunk(
   keywords: string[],
   startOffset: number,
   maxPairs = 15,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  onPair?: (progress: ScrapePairProgress) => Promise<void> | void
 ): Promise<ScrapeChunkResult> {
   const pairs = buildPairs(subreddits, keywords)
   const total = pairs.length
 
   if (total === 0) {
-    return { posts: [], nextOffset: 0, cycleComplete: true }
+    return { posts: [], nextOffset: 0, cycleComplete: true, pairsTotal: 0 }
   }
 
   // Normalize in case a stale offset is out of range (e.g. campaign edited since last run).
@@ -193,6 +212,15 @@ export async function scrapeChunk(
 
     processed++
     onProgress?.(`[${safeStart + processed}/${total}] r/${subreddit} → "${keyword}"`)
+
+    // Published before the fetch, not after, so the UI names the search that is
+    // currently in flight rather than the one that just finished.
+    try {
+      await onPair?.({ index: safeStart + processed, total, subreddit, keyword })
+    } catch (err) {
+      // Progress reporting is cosmetic; never let it abort a scrape.
+      onProgress?.(`  ⚠ Progress update failed: ${(err as Error).message}`)
+    }
 
     if (processed > 1) {
       await sleep(INTER_REQUEST_DELAY_MS)
@@ -232,5 +260,6 @@ export async function scrapeChunk(
     posts: results.sort((a, b) => b.relevance_score - a.relevance_score),
     nextOffset,
     cycleComplete,
+    pairsTotal: total,
   }
 }

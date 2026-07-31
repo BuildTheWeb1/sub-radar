@@ -110,3 +110,19 @@ create table if not exists subreddit_guidelines (
   subscribers integer,
   fetched_at timestamptz not null default now()
 );
+
+-- Live scrape progress. A scrape cycle spans several cron invocations (see
+-- TIME_BUDGET_MS in lib/scraper.ts), so without these the UI cannot tell an idle
+-- scraper apart from one that is halfway through a cycle. Written once per
+-- subreddit x keyword pair by the cron route, read by /api/scrape-status.
+alter table scrape_jobs add column if not exists campaign_id uuid references campaigns(id) on delete cascade;
+alter table scrape_jobs add column if not exists pairs_total integer not null default 0;
+alter table scrape_jobs add column if not exists pairs_done integer not null default 0;
+alter table scrape_jobs add column if not exists current_subreddit text;
+alter table scrape_jobs add column if not exists current_keyword text;
+
+create index if not exists scrape_jobs_campaign_id_idx on scrape_jobs (campaign_id);
+
+-- Partial index for the "is a job running right now?" lookup, which the dashboard
+-- polls every few seconds while a scrape is open.
+create index if not exists scrape_jobs_open_idx on scrape_jobs (user_id, started_at desc) where finished_at is null;

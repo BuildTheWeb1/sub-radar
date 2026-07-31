@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import Link from 'next/link'
 import { Inbox } from 'lucide-react'
+import { SCRAPE_FINISHED_EVENT } from './scraper-bar'
 
 interface Filters {
   status?: string
@@ -68,6 +70,17 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
   useEffect(() => {
     setOffset(0)
     fetchPosts(0, true)
+  }, [fetchPosts])
+
+  // When the ScraperBar sees a job close, pull the new rows in rather than leaving
+  // the user looking at a stale list with no hint that anything arrived.
+  useEffect(() => {
+    function onScrapeFinished() {
+      setOffset(0)
+      fetchPosts(0, true)
+    }
+    window.addEventListener(SCRAPE_FINISHED_EVENT, onScrapeFinished)
+    return () => window.removeEventListener(SCRAPE_FINISHED_EVENT, onScrapeFinished)
   }, [fetchPosts])
 
   useEffect(() => {
@@ -161,12 +174,18 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-3">
-          <Inbox className="h-5 w-5 shrink-0 text-brand-text-muted" />
-          <p className="text-sm">
-            <span className="font-semibold text-brand-text">No posts found.</span>{' '}
-            <span className="text-brand-text-muted">Adjust filters or wait for the next scrape.</span>
-          </p>
+        <div className="flex items-start gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-4">
+          <Inbox className="h-5 w-5 mt-0.5 shrink-0 text-brand-text-muted" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-brand-text">Nothing here yet</p>
+            <p className="text-sm text-brand-text-muted max-w-prose">
+              Either no post matched your keywords, or the filters above are too narrow.{' '}
+              <Link href="/dashboard/radar" className="font-medium text-brand-accent hover:underline">
+                Check what you&apos;re watching
+              </Link>{' '}
+              to add subreddits and keywords.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="space-y-3 animate-fade-up">
