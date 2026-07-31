@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { X, Plus, ChevronDown, ChevronRight } from 'lucide-react'
+import { X, Plus, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Campaign, SubredditGuideline } from '@/lib/types'
 import { BanRiskBadge } from '@/components/ban-risk-badge'
@@ -143,7 +143,7 @@ export default function SettingsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {subreddits.map((sub) => (
-            <span key={sub} className="inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium">
+            <span key={sub} className="chip-enter inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium">
               r/{sub}
               <button onClick={() => setSubreddits((s) => s.filter((x) => x !== sub))} className="hover:text-destructive">
                 <X className="h-3 w-3" />
@@ -178,7 +178,7 @@ export default function SettingsPage() {
             Add subreddits to see their posting guidelines.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 animate-fade-up">
             {guidelines.map((g) => {
               const isExpanded = expandedRules.has(g.subreddit)
               return (
@@ -212,27 +212,28 @@ export default function SettingsPage() {
                     <div>
                       <button
                         onClick={() => toggleRules(g.subreddit)}
+                        aria-expanded={isExpanded}
                         className="flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
                       >
-                        {isExpanded ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3" />
-                        )}
+                        <ChevronRight
+                          className={`h-3 w-3 transition-transform duration-200 ease-out ${isExpanded ? 'rotate-90' : ''}`}
+                        />
                         {isExpanded ? 'Hide' : 'Show'} rules ({g.rules.length})
                       </button>
-                      {isExpanded && (
-                        <ul className="mt-2 space-y-2 pl-1">
-                          {g.rules.map((rule, i) => (
-                            <li key={i} className="text-xs">
-                              <span className="font-medium">{rule.title}</span>
-                              {rule.description && (
-                                <p className="text-muted-foreground">{rule.description}</p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <div className="disclosure-rows" data-open={isExpanded}>
+                        <div>
+                          <ul className="mt-2 space-y-2 pl-1">
+                            {g.rules.map((rule, i) => (
+                              <li key={i} className="text-xs">
+                                <span className="font-medium">{rule.title}</span>
+                                {rule.description && (
+                                  <p className="text-muted-foreground">{rule.description}</p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -247,7 +248,7 @@ export default function SettingsPage() {
         <h2 className="text-base font-semibold text-brand-text-strong">Keywords <span className="text-brand-text-muted font-normal text-sm">({keywords.length}/20)</span></h2>
         <div className="flex flex-wrap gap-2">
           {keywords.map((kw) => (
-            <span key={kw} className="inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium">
+            <span key={kw} className="chip-enter inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium">
               {kw}
               <button onClick={() => setKeywords((k) => k.filter((x) => x !== kw))} className="hover:text-destructive">
                 <X className="h-3 w-3" />

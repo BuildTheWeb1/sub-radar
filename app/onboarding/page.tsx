@@ -152,7 +152,7 @@ export default function OnboardingPage() {
         </div>
 
         {step === 1 && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-up">
             <section className="space-y-2">
               <h2 className="text-sm font-medium">Product description</h2>
               <textarea
@@ -192,7 +192,7 @@ export default function OnboardingPage() {
         )}
 
         {step === 2 && (
-          <div className="space-y-8">
+          <div className="space-y-8 animate-fade-up">
             {suggestError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {suggestError}
@@ -257,7 +257,7 @@ export default function OnboardingPage() {
                 {keywords.map((kw) => (
                   <span
                     key={kw}
-                    className="inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium"
+                    className="chip-enter inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium"
                   >
                     {kw}
                     <button onClick={() => setKeywords((k) => k.filter((x) => x !== kw))} className="hover:text-destructive">

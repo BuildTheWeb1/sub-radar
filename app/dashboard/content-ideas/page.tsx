@@ -85,7 +85,7 @@ export default function ContentIdeasPage() {
       )}
 
       {status === 'error' && (
-        <div className="flex items-center gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-3">
+        <div className="flex items-center gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-3 animate-fade-up">
           <Inbox className="h-5 w-5 shrink-0 text-brand-text-muted" />
           <p className="text-sm flex-1">
             <span className="font-semibold text-brand-text">Couldn&apos;t generate content ideas.</span>{' '}
@@ -99,7 +99,7 @@ export default function ContentIdeasPage() {
       )}
 
       {status === 'idle' && isEmpty && (
-        <div className="flex items-center gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-3">
+        <div className="flex items-center gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-3 animate-fade-up">
           <Inbox className="h-5 w-5 shrink-0 text-brand-text-muted" />
           <p className="text-sm">
             <span className="font-semibold text-brand-text">No posts to work with yet.</span>{' '}
@@ -109,7 +109,7 @@ export default function ContentIdeasPage() {
       )}
 
       {status === 'idle' && ideas && !isEmpty && (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-up">
           {ideas.painPoints.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-brand-text">Pain points</h2>

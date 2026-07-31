@@ -169,7 +169,7 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-fade-up">
           {posts.map((post) => (
             <PostCard
               key={post.id}
