@@ -31,8 +31,8 @@ export function Sidebar() {
                 className={cn(
                   'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors',
                   active
-                    ? 'bg-[#fff7ed] text-[#c2410c] font-semibold'
-                    : 'text-[#8a5d3f] hover:text-[#431407] hover:bg-[#fffbf5]'
+                    ? 'bg-brand-foreground text-brand-accent font-semibold'
+                    : 'text-brand-text-muted hover:text-brand-text hover:bg-brand-surface'
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -56,8 +56,8 @@ export function Sidebar() {
               className={cn(
                 'flex flex-1 flex-col items-center gap-0.5 py-1 text-xs whitespace-nowrap transition-colors',
                 active
-                  ? 'text-[#c2410c] font-semibold'
-                  : 'text-[#8a5d3f]'
+                  ? 'text-brand-accent font-semibold'
+                  : 'text-brand-text-muted'
               )}
             >
               <Icon className="h-5 w-5" />

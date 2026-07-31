@@ -161,10 +161,12 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-          <Inbox className="h-10 w-10 text-[#fde8cc]" />
-          <p className="text-sm font-semibold text-[#431407]">No posts found</p>
-          <p className="text-xs text-[#8a5d3f]">Adjust filters or wait for the next scrape.</p>
+        <div className="flex items-center gap-3 rounded-lg border border-brand-surface-border bg-brand-surface px-4 py-3">
+          <Inbox className="h-5 w-5 shrink-0 text-brand-text-muted" />
+          <p className="text-sm">
+            <span className="font-semibold text-brand-text">No posts found.</span>{' '}
+            <span className="text-brand-text-muted">Adjust filters or wait for the next scrape.</span>
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

@@ -1,12 +1,13 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
+import { BrandMark } from '@/components/brand-mark'
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* Left brand panel */}
-      <div className="relative md:w-[55%] bg-gradient-to-br from-[#1c0a00] via-[#431407] to-[#7c2d12] flex flex-col justify-center px-10 py-12 overflow-hidden">
+      <div className="relative md:w-[55%] bg-gradient-to-br from-brand-text-strong via-brand-text to-brand-gradient-to flex flex-col justify-center px-10 py-12 overflow-hidden">
         {/* Decorative circles */}
         <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-white opacity-[0.04]" />
         <div className="absolute -bottom-32 -right-10 w-[28rem] h-[28rem] rounded-full bg-white opacity-[0.03]" />
@@ -14,10 +15,8 @@ export default function LoginPage() {
         <div className="relative z-10 max-w-md">
           {/* Logo */}
           <div className="flex items-center gap-2.5 mb-8">
-            <div className="w-7 h-7 bg-[#ea580c] rounded-[6px] flex items-center justify-center">
-              <div className="w-[9px] h-[9px] rounded-full bg-white opacity-90" />
-            </div>
-            <span className="font-bold text-[#fed7aa] tracking-tight text-lg">SubRadar</span>
+            <BrandMark size="md" />
+            <span className="font-bold text-brand-surface-border-hover tracking-tight text-lg">SubRadar</span>
           </div>
 
           {/* Headline */}
@@ -26,7 +25,7 @@ export default function LoginPage() {
           </h1>
 
           {/* Body */}
-          <p className="text-[#fca474] text-sm leading-relaxed mb-8">
+          <p className="text-brand-tagline text-sm leading-relaxed mb-8">
             SubRadar monitors Reddit 24/7 and surfaces conversations where your product is exactly what people are asking for.
           </p>
 
@@ -35,7 +34,7 @@ export default function LoginPage() {
             {['Reddit monitoring', 'Lead generation', 'AI relevance scoring'].map((tag) => (
               <span
                 key={tag}
-                className="text-xs px-3 py-1 rounded-full text-[#fed7aa]"
+                className="text-xs px-3 py-1 rounded-full text-brand-surface-border-hover"
                 style={{ background: 'rgba(234,88,12,0.2)' }}
               >
                 {tag}
@@ -46,16 +45,16 @@ export default function LoginPage() {
       </div>
 
       {/* Right sign-in panel */}
-      <div className="md:w-[45%] bg-[#fffbf5] flex flex-col items-center justify-center px-8 py-12">
+      <div className="md:w-[45%] bg-brand-surface flex flex-col items-center justify-center px-8 py-12">
         <div className="w-full max-w-sm space-y-6">
           <div className="space-y-1.5">
-            <h2 className="text-2xl font-bold text-[#1c0a00]">Welcome back</h2>
-            <p className="text-sm text-[#8a5d3f]">Sign in to your SubRadar account to continue.</p>
+            <h2 className="text-2xl font-bold text-brand-text-strong">Welcome back</h2>
+            <p className="text-sm text-brand-text-muted">Sign in to your SubRadar account to continue.</p>
           </div>
 
           <button
             onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-            className="w-full flex items-center justify-center gap-3 border border-[#fde8cc] bg-white rounded-lg px-4 py-2.5 text-sm font-medium text-[#431407] hover:bg-[#fffbf5] transition-colors"
+            className="w-full flex items-center justify-center gap-3 border border-brand-surface-border bg-white rounded-lg px-4 py-2.5 text-sm font-medium text-brand-text hover:bg-brand-surface transition-colors"
           >
             {/* Google logo inline SVG */}
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -67,14 +66,14 @@ export default function LoginPage() {
             Continue with Google
           </button>
 
-          <p className="text-center text-xs text-[#8a5d3f]">Access is by invitation only</p>
+          <p className="text-center text-xs text-brand-text-muted">Access is by invitation only</p>
 
-          <div className="border-t border-[#fde8cc] pt-4">
-            <p className="text-center text-xs text-[#8a5d3f]">
+          <div className="border-t border-brand-surface-border pt-4">
+            <p className="text-center text-xs text-brand-text-muted">
               By signing in you agree to our{' '}
-              <a href="#" className="underline hover:text-[#431407]">Terms of Service</a>
+              <a href="#" className="underline hover:text-brand-text">Terms of Service</a>
               {' '}and{' '}
-              <a href="#" className="underline hover:text-[#431407]">Privacy Policy</a>.
+              <a href="#" className="underline hover:text-brand-text">Privacy Policy</a>.
             </p>
           </div>
         </div>

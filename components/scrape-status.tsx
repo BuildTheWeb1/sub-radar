@@ -89,13 +89,13 @@ export function ScrapeStatus() {
   }
 
   return (
-    <div className="rounded-lg border border-[#fde8cc] bg-[#fffbf5] p-4 space-y-3">
+    <div className="rounded-lg border border-brand-surface-border bg-brand-surface p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Scraper</span>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#c2410c] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-brand-surface-border text-brand-accent hover:bg-brand-foreground"
           onClick={handleTrigger}
           disabled={triggering}
         >
@@ -125,7 +125,7 @@ export function ScrapeStatus() {
         </div>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className="bg-[#fde8cc] text-[#a8380a] font-bold text-xs px-2 py-0.5 rounded-full">
+            <span className="bg-brand-surface-border text-brand-accent-strong font-bold text-xs px-2 py-0.5 rounded-full">
               {status?.new_count ?? 0}
             </span>
             <span>unreviewed</span>

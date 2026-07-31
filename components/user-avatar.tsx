@@ -38,7 +38,7 @@ export function UserAvatar() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="w-7 h-7 rounded-full bg-[#fde8cc] text-[#c2410c] text-xs font-bold flex items-center justify-center hover:bg-[#fed7aa] transition-colors cursor-pointer"
+        className="w-7 h-7 rounded-full bg-brand-surface-border text-brand-accent text-xs font-bold flex items-center justify-center hover:bg-brand-surface-border-hover transition-colors cursor-pointer"
         aria-label={name ?? email}
         title={name ?? email}
       >
@@ -48,8 +48,8 @@ export function UserAvatar() {
         <DropdownMenuGroup>
           <DropdownMenuLabel>
             <div className="flex flex-col gap-0.5">
-              {name && <span className="font-semibold text-[#1c0a00] text-sm">{name}</span>}
-              <span className="text-xs text-[#8a5d3f] truncate">{email}</span>
+              {name && <span className="font-semibold text-brand-text-strong text-sm">{name}</span>}
+              <span className="text-xs text-brand-text-muted truncate">{email}</span>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
@@ -66,7 +66,7 @@ export function UserAvatar() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
-            className="flex items-center gap-2 text-[#c2410c] focus:text-[#c2410c] cursor-pointer"
+            className="flex items-center gap-2 text-brand-accent focus:text-brand-accent cursor-pointer"
             onClick={() => signOut({ callbackUrl: '/login' })}
           >
             <LogOut className="h-3.5 w-3.5" />

@@ -15,10 +15,12 @@ interface PostCardProps {
   risk?: BanRisk
 }
 
+// Same three-tier palette as BanRiskBadge's risk levels (ban-risk-badge.tsx) — relevance and
+// ban-risk are the card's two status signals and now share one color language.
 function relevanceColor(score: number) {
   if (score >= 70) return 'bg-green-100 text-green-800'
-  if (score >= 40) return 'bg-yellow-100 text-yellow-800'
-  return 'bg-red-100 text-red-800'
+  if (score >= 40) return 'bg-amber-100 text-amber-800'
+  return 'bg-red-100 text-brand-accent-strong'
 }
 
 function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outline' {
@@ -52,7 +54,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
   const timeAgo = formatDistanceToNow(new Date(post.posted_at), { addSuffix: true })
 
   return (
-    <div className="rounded-lg border border-[#fde8cc] bg-[#fffbf5] p-4 space-y-3 hover:border-[#fed7aa] hover:shadow-md transition-all" style={{ boxShadow: '0 1px 4px rgba(234,88,12,0.07)' }}>
+    <div className="rounded-lg border border-brand-surface-border bg-brand-surface p-4 space-y-3 transition-colors duration-150 ease-out hover:border-brand-surface-border-hover" style={{ boxShadow: '0 1px 4px rgba(234,88,12,0.07)' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <a
@@ -70,7 +72,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-        <span className="font-semibold text-[#c2410c]">r/{post.subreddit}</span>
+        <span className="font-semibold text-brand-accent">r/{post.subreddit}</span>
         {risk && <BanRiskBadge risk={risk} />}
         <span>·</span>
         <span>{post.upvotes} pts</span>
@@ -96,7 +98,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#8a5d3f] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
           disabled={post.status === 'replied' || loading !== null}
           onClick={() => updateStatus('replied')}
         >
@@ -106,7 +108,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#8a5d3f] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
           disabled={post.status === 'ignored' || loading !== null}
           onClick={() => updateStatus('ignored')}
         >
@@ -116,7 +118,7 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs gap-1 border-[#fde8cc] text-[#8a5d3f] hover:bg-[#fff7ed]"
+          className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
           disabled={loading !== null}
           onClick={() => updateStatus(post.status === 'saved' ? 'new' : 'saved')}
         >

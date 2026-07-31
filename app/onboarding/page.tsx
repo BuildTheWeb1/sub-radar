@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { BrandMark } from '@/components/brand-mark'
 import { X, Plus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Campaign } from '@/lib/types'
@@ -136,13 +137,11 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fffbf5] flex flex-col items-center px-4 py-10">
+    <div className="min-h-screen bg-brand-surface flex flex-col items-center px-4 py-10">
       <div className="w-full max-w-2xl space-y-8">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-[#ea580c] rounded-[5px] flex items-center justify-center">
-            <div className="w-[7px] h-[7px] rounded-full bg-white opacity-90" />
-          </div>
-          <span className="font-bold text-[#1c0a00] tracking-tight text-sm">SubRadar</span>
+          <BrandMark size="sm" />
+          <span className="font-bold text-brand-text-strong tracking-tight text-sm">SubRadar</span>
         </div>
 
         <div>
@@ -161,9 +160,9 @@ export default function OnboardingPage() {
                 onChange={(e) => setProductDescription(e.target.value)}
                 rows={5}
                 placeholder="Describe what your product does and who it's for (at least 20 characters)…"
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                className="w-full rounded-md border border-brand-surface-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-brand-text-muted">
                 {productDescription.trim().length}/{MIN_DESCRIPTION_LENGTH} characters minimum
               </p>
             </section>
@@ -204,12 +203,12 @@ export default function OnboardingPage() {
             <section className="space-y-3">
               <h2 className="text-sm font-medium">
                 Subreddits{' '}
-                <span className="text-muted-foreground font-normal">
+                <span className="text-brand-text-muted font-normal">
                   ({selectedSubreddits.size}/{MAX_SUBREDDITS} selected)
                 </span>
               </h2>
               {suggestions.length === 0 && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-brand-text-muted">
                   No suggestions yet — add subreddits manually below.
                 </p>
               )}
@@ -219,17 +218,17 @@ export default function OnboardingPage() {
                   return (
                     <label
                       key={s.name}
-                      className="flex items-start gap-3 rounded-md border px-3 py-2.5 cursor-pointer hover:bg-muted/50"
+                      className="flex items-start gap-3 rounded-md border border-brand-surface-border px-3 py-2.5 cursor-pointer hover:bg-brand-surface"
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleSubreddit(s.name)}
-                        className="mt-0.5 accent-foreground"
+                        className="mt-0.5 accent-brand"
                       />
                       <div className="min-w-0">
                         <div className="text-sm font-medium">r/{s.name}</div>
-                        <div className="text-xs text-muted-foreground">{s.reason}</div>
+                        <div className="text-xs text-brand-text-muted">{s.reason}</div>
                       </div>
                     </label>
                   )
@@ -241,7 +240,7 @@ export default function OnboardingPage() {
                   onChange={(e) => setNewSubreddit(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSubreddit())}
                   placeholder="Add a subreddit, e.g. loseit"
-                  className="flex-1 min-w-0 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex-1 min-w-0 rounded-md border border-brand-surface-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button size="sm" variant="outline" onClick={addSubreddit}>
                   <Plus className="h-4 w-4" />
@@ -252,13 +251,13 @@ export default function OnboardingPage() {
             {/* Keywords */}
             <section className="space-y-3">
               <h2 className="text-sm font-medium">
-                Keywords <span className="text-muted-foreground font-normal">({keywords.length}/20)</span>
+                Keywords <span className="text-brand-text-muted font-normal">({keywords.length}/20)</span>
               </h2>
               <div className="flex flex-wrap gap-2">
                 {keywords.map((kw) => (
                   <span
                     key={kw}
-                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                    className="inline-flex items-center gap-1 rounded-full border border-brand-surface-border px-2.5 py-0.5 text-xs font-medium"
                   >
                     {kw}
                     <button onClick={() => setKeywords((k) => k.filter((x) => x !== kw))} className="hover:text-destructive">
@@ -267,7 +266,7 @@ export default function OnboardingPage() {
                   </span>
                 ))}
                 {keywords.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No keywords yet — add some below.</p>
+                  <p className="text-sm text-brand-text-muted">No keywords yet — add some below.</p>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -276,7 +275,7 @@ export default function OnboardingPage() {
                   onChange={(e) => setNewKeyword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                   placeholder="e.g. mental clarity"
-                  className="flex-1 min-w-0 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex-1 min-w-0 rounded-md border border-brand-surface-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button size="sm" variant="outline" onClick={addKeyword} disabled={keywords.length >= 20}>
                   <Plus className="h-4 w-4" />
