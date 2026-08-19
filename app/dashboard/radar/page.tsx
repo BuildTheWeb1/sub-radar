@@ -97,7 +97,12 @@ export default function RadarPage() {
       setCampaign(data as Campaign)
       toast.success('Radar updated')
 
-      if (thenScan) {
+      // /api/config already starts a scan itself whenever targets actually
+      // changed (see scanStarted below) — only fall back to an explicit trigger
+      // when it didn't, e.g. the user clicked "Save & scan now" without changing
+      // subreddits/keywords. Calling both would double-scan and double-charge
+      // credits for one click.
+      if (thenScan && !(data as Campaign & { scanStarted?: boolean }).scanStarted) {
         const scanRes = await fetch('/api/scrape/trigger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

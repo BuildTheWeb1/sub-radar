@@ -33,16 +33,41 @@ async function deductCycleCreditsStep(campaign: Campaign): Promise<boolean> {
   return result.ok
 }
 
-async function pauseCampaignStep(campaignId: string): Promise<void> {
+/**
+ * Only a chain run clears active_run_id here. An ad-hoc (chain=false) run
+ * never held active_run_id — it belongs to whatever persistent chain is (or
+ * isn't) alive for this campaign — so an ad-hoc run hitting insufficient
+ * credits must not clear it: doing so would make reconcile think the real
+ * chain is dead and start a second, duplicate one while the original is still
+ * asleep. Setting paused_reason is enough on its own to stop that sleeping
+ * chain when it eventually wakes (see the guard at the top of
+ * scrapeCycleWorkflow, which releases active_run_id itself at that point).
+ */
+async function pauseCampaignStep(campaignId: string, chain: boolean): Promise<void> {
   'use step'
-  // Pausing ends the chain: a sleeping chain run that wakes up later will see
-  // paused_reason set and stop itself (see the guard at the top of
-  // scrapeCycleWorkflow), and active_run_id is cleared so nothing treats this
-  // campaign as having a live chain in the meantime.
-  await sql`
-    UPDATE campaigns SET paused_reason = 'insufficient_credits', active_run_id = NULL
-    WHERE id = ${campaignId}
-  `
+  if (chain) {
+    await sql`
+      UPDATE campaigns SET paused_reason = 'insufficient_credits', active_run_id = NULL
+      WHERE id = ${campaignId}
+    `
+  } else {
+    await sql`UPDATE campaigns SET paused_reason = 'insufficient_credits' WHERE id = ${campaignId}`
+  }
+}
+
+/**
+ * A chain run that wakes up and finds the campaign already paused (set by
+ * some other run in the meantime) must release active_run_id itself before
+ * stopping — this is the only place that happens for that case, since the run
+ * that originally set paused_reason may have been an ad-hoc pass that
+ * deliberately left active_run_id alone (see pauseCampaignStep above).
+ * Skipping this would leave active_run_id permanently pointing at a chain
+ * that has now genuinely stopped re-enqueuing itself, which would block
+ * reconcile's credit-recovery path forever.
+ */
+async function releaseDeadChainStep(campaignId: string): Promise<void> {
+  'use step'
+  await sql`UPDATE campaigns SET active_run_id = NULL WHERE id = ${campaignId}`
 }
 
 /**
@@ -86,12 +111,21 @@ async function scrapePairStep(
   return scrapeOnePair(campaign, subreddit, keyword, jobId, index, total)
 }
 
-/** Closes the scrape_jobs row and schedules the next cycle. Never touches active_run_id — see markRunStartedStep. */
+/**
+ * Closes the scrape_jobs row and, for chain runs only, schedules the next
+ * cycle. An ad-hoc (chain=false) run must NOT overwrite next_run_at — the
+ * persistent chain (if one is alive) is asleep counting down to a timestamp
+ * it already captured from its own last cycle, and a write here would only
+ * desync what the UI displays from when the chain will actually wake, without
+ * changing the real wake time at all. Never touches active_run_id — see
+ * markRunStartedStep.
+ */
 async function markRunFinishedStep(
   campaign: Campaign,
   jobId: string,
-  totalInserted: number
-): Promise<string> {
+  totalInserted: number,
+  chain: boolean
+): Promise<string | null> {
   'use step'
   await sql`
     UPDATE scrape_jobs
@@ -99,6 +133,11 @@ async function markRunFinishedStep(
         current_subreddit = NULL, current_keyword = NULL
     WHERE id = ${jobId}
   `
+
+  if (!chain) {
+    await sql`UPDATE campaigns SET last_scraped_at = now(), scrape_offset = 0 WHERE id = ${campaign.id}`
+    return null
+  }
 
   const frequencyHours = FREQUENCY_HOURS[campaign.scrape_frequency] ?? 2
   const rows = (await sql`
@@ -179,6 +218,14 @@ export async function scrapeCycleWorkflow(campaignId: string, chain: boolean) {
 
   const campaign = await loadCampaignStep(campaignId)
   if (!campaign || campaign.paused_reason) {
+    // A chain run waking up into an already-paused campaign has genuinely
+    // stopped now (it will not re-enqueue itself below) — release
+    // active_run_id so reconcile's credit-recovery pass can see the chain is
+    // dead and eventually start a fresh one, rather than waiting forever on a
+    // run that already gave up.
+    if (campaign && chain) {
+      await releaseDeadChainStep(campaignId)
+    }
     return { status: 'skipped' as const }
   }
 
@@ -190,7 +237,7 @@ export async function scrapeCycleWorkflow(campaignId: string, chain: boolean) {
   try {
     const granted = await deductCycleCreditsStep(campaign)
     if (!granted) {
-      await pauseCampaignStep(campaignId)
+      await pauseCampaignStep(campaignId, chain)
       return { status: 'paused' as const }
     }
 
@@ -207,9 +254,9 @@ export async function scrapeCycleWorkflow(campaignId: string, chain: boolean) {
       await sleep('1.5s')
     }
 
-    const nextRunAt = await markRunFinishedStep(campaign, jobId, totalInserted)
+    const nextRunAt = await markRunFinishedStep(campaign, jobId, totalInserted, chain)
 
-    if (chain) {
+    if (chain && nextRunAt) {
       await sleep(new Date(nextRunAt))
       await startNextCycleStep(campaignId)
     }

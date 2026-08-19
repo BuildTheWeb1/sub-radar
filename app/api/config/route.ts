@@ -112,6 +112,12 @@ export async function POST(req: NextRequest) {
     // the current run picked up. This is also what fires the first-ever scan
     // when onboarding saves targets for the first time, since that always
     // flows through this same POST /api/config path.
+    // Tracks whether this request already kicked off a scan, so the caller (the
+    // Radar page's "Save & scan now") knows not to also hit /api/scrape/trigger —
+    // without this, a targets-changed save plus an explicit "scan now" click
+    // started two separate workflow runs against the same pairs, double-billing
+    // credits and double-scraping Reddit for one user action.
+    let scanStarted = false
     if (targetsChanged && data.subreddits.length > 0 && data.keywords.length > 0) {
       try {
         // The user just chose to (re)watch these targets — clear any stale
@@ -124,6 +130,7 @@ export async function POST(req: NextRequest) {
           // start one. chain: true means this run holds active_run_id and
           // re-enqueues itself after each cycle.
           await start(scrapeCycleWorkflow, [data.id, true])
+          scanStarted = true
         } else {
           // A chain is already alive and will naturally pick up these new
           // targets on its next cycle (it reloads the campaign row fresh each
@@ -136,6 +143,7 @@ export async function POST(req: NextRequest) {
           `) as { id: string }[]
           if (openRows.length === 0) {
             await start(scrapeCycleWorkflow, [data.id, false])
+            scanStarted = true
           }
         }
       } catch (err) {
@@ -143,7 +151,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json({ ...data, scanStarted })
   } catch (err) {
     console.error('[config POST] Failed to update campaign:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
