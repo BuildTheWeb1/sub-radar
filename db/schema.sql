@@ -185,3 +185,22 @@ create unique index if not exists credit_ledger_scan_cycle_ref_id_idx
 -- doubles as the arbiter for an upsert-on-retry.
 create unique index if not exists scrape_jobs_open_per_campaign_idx
   on scrape_jobs (campaign_id) where finished_at is null;
+
+-- Idempotency key for Stripe-purchased credits: ref_id is the Checkout
+-- Session id (see app/api/billing/webhook/route.ts), so a redelivered webhook
+-- event for the same session is a no-op instead of double-granting credits.
+-- Scoped to reason = 'purchase' only, mirroring the scan_cycle index above.
+create unique index if not exists credit_ledger_purchase_ref_id_idx
+  on credit_ledger (ref_id) where reason = 'purchase';
+
+-- Tombstone for deleted accounts (see app/api/account/route.ts). Google's
+-- providerAccountId is stable, so without this a deleted user could just
+-- sign in again and get re-inserted with the trial default credit_balance
+-- (100 — see above) for free, indefinitely. lib/auth.ts's signIn callback
+-- checks this table and grants 0 instead of 100 to a ONCE-deleted id
+-- reappearing, closing that loop without permanently blocking a legitimate
+-- return.
+create table if not exists deleted_accounts (
+  id text primary key,
+  deleted_at timestamptz not null default now()
+);

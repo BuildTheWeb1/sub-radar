@@ -5,3 +5,19 @@
 // client components that display them beforehand can import the same values.
 export const SUGGEST_COST = 1
 export const CONTENT_IDEAS_COST = 3
+
+export interface CreditPack {
+  id: string
+  credits: number
+  priceUsd: number
+}
+
+// Flat price_data line items at checkout time, not pre-created Stripe Price
+// objects — keeps a pack addable here without any matching setup in the
+// Stripe dashboard. `id` doubles as the client_reference for the checkout
+// route and the value the webhook trusts to know how many credits to grant.
+export const CREDIT_PACKS: CreditPack[] = [
+  { id: 'starter', credits: 200, priceUsd: 5 },
+  { id: 'growth', credits: 1000, priceUsd: 20 },
+  { id: 'scale', credits: 3000, priceUsd: 50 },
+]

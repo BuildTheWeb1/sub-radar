@@ -25,9 +25,19 @@ export const authOptions: NextAuthOptions = {
           const email = user.email
           const name = user.name
           const image = user.image
+
+          // Google's providerAccountId is stable, so a previously-deleted
+          // account (see app/api/account/route.ts) signing in again would
+          // otherwise re-insert this id fresh and get the trial default
+          // credit_balance (100) for free, indefinitely. Grant 0 instead for
+          // a once-deleted id — still lets them back in, just without a free
+          // refill on every delete/re-signup cycle.
+          const deleted = await sql`SELECT 1 FROM deleted_accounts WHERE id = ${id}`
+          const startingBalance = deleted.length > 0 ? 0 : 100
+
           await sql`
-            INSERT INTO users (id, email, name, image, last_seen_at)
-            VALUES (${id}, ${email}, ${name}, ${image}, now())
+            INSERT INTO users (id, email, name, image, last_seen_at, credit_balance)
+            VALUES (${id}, ${email}, ${name}, ${image}, now(), ${startingBalance})
             ON CONFLICT (id) DO UPDATE SET
               email = EXCLUDED.email,
               name = EXCLUDED.name,
