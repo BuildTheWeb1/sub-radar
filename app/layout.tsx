@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Plus_Jakarta_Sans, Geist_Mono } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { NextAuthSessionProvider } from '@/components/session-provider'
 import { Toaster } from '@/components/ui/sonner'
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Mounted once at the root: /onboarding and /login had no Toaster of their
             own, so every toast raised there was silently dropped. */}
         <Toaster />
+        <Analytics />
       </body>
     </html>
   )
