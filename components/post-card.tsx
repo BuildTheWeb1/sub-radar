@@ -8,6 +8,8 @@ import { Post, PostStatus, SubredditGuideline } from '@/lib/types'
 import { ExternalLink, CheckCircle, EyeOff, Bookmark, BookmarkCheck, ChevronDown } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { pluralize } from '@/lib/utils'
 
 interface PostCardProps {
   post: Post
@@ -28,6 +30,14 @@ function relevanceColor(score: number) {
   if (score >= 70) return 'bg-green-100 text-green-800'
   if (score >= 40) return 'bg-amber-100 text-amber-800'
   return 'bg-red-100 text-brand-accent-strong'
+}
+
+// The score itself is unlabeled in the badge (just a bare number, to stay
+// compact) — this is what the tooltip below fills in.
+function relevanceLabel(score: number) {
+  if (score >= 70) return 'Strong match'
+  if (score >= 40) return 'Some overlap'
+  return 'Weak match'
 }
 
 function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outline' {
@@ -74,9 +84,21 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
             {post.title}
           </a>
         </div>
-        <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${relevanceColor(post.relevance_score)}`}>
-          {post.relevance_score}
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${relevanceColor(post.relevance_score)}`}
+              />
+            }
+          >
+            {post.relevance_score}
+          </TooltipTrigger>
+          <TooltipContent>
+            {relevanceLabel(post.relevance_score)} — {post.relevance_score}/100 relevance to your
+            campaign&apos;s keywords
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
@@ -94,9 +116,9 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
           </button>
         )}
         <span>·</span>
-        <span>{post.upvotes} pts</span>
+        <span>{pluralize(post.upvotes, 'point')}</span>
         <span>·</span>
-        <span>{post.num_comments} comments</span>
+        <span>{pluralize(post.num_comments, 'comment')}</span>
         <span>·</span>
         <span>{timeAgo}</span>
         {post.status !== 'new' && (
