@@ -23,12 +23,11 @@ const REQUEST_HEADERS: Record<string, string> = {
 }
 
 // Kept short: a real response (blocked or not) comes back in well under a second: a long
-// hang means the request is stuck, and callers are time-boxed by a serverless function
-// duration limit, so a slow single request must not be allowed to eat the whole budget.
-// Worst case for one fetchRedditJson() call (timeout, backoff, retry, timeout again) is
-// ~2*REQUEST_TIMEOUT_MS + RETRY_BACKOFF_MS — callers that time-box a loop of these calls
-// (see scraper.ts TIME_BUDGET_MS) must keep their budget below that worst case, or two
-// stalled calls can stack past their intended budget before the loop notices.
+// hang means the request is stuck. Worst case for one fetchRedditJson() call (timeout,
+// backoff, retry, timeout again) is ~2*REQUEST_TIMEOUT_MS + RETRY_BACKOFF_MS — each call
+// happens inside its own workflow step (see scrapePairStep in
+// lib/workflows/scrape-cycle.ts), so a stalled call delays that one pair rather than
+// eating a shared time budget for the whole cycle.
 const REQUEST_TIMEOUT_MS = 6_000
 const RETRY_BACKOFF_MS = 1500
 

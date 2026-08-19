@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { start } from 'workflow/api'
 import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
 import { getOrCreateCampaign } from '@/lib/campaigns'
+import { scrapeCycleWorkflow } from '@/lib/workflows/scrape-cycle'
 import type { Campaign } from '@/lib/types'
 
 export async function GET() {
@@ -73,11 +75,9 @@ export async function POST(req: NextRequest) {
     const nextSubreddits = has('subreddits') ? (subreddits as string[]) : campaign.subreddits
     const nextKeywords = has('keywords') ? (keywords as string[]) : campaign.keywords
 
-    // scrape_offset is a cursor into the subreddit x keyword pair list. Changing
-    // either array changes that list's length and ordering, which makes the stored
-    // offset meaningless — scrapeChunk would wrap it modulo the new length and
-    // resume at an arbitrary position, skipping every pair before it and then
-    // declaring the cycle complete. Restart the cycle instead.
+    // scrape_offset is a legacy cursor from the retired chunked-cron scraper.
+    // Nothing reads it anymore, but it's reset alongside targetsChanged below so
+    // a rollback wouldn't inherit a cursor pointing at the wrong pair list.
     const targetsChanged =
       JSON.stringify(nextSubreddits) !== JSON.stringify(campaign.subreddits) ||
       JSON.stringify(nextKeywords) !== JSON.stringify(campaign.keywords)
@@ -105,6 +105,42 @@ export async function POST(req: NextRequest) {
     if (!data) {
       console.error('[config POST] Failed to update campaign: no row matched (id/user_id mismatch)')
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+
+    // Changing targets invalidates whatever scan cycle is in flight — get the
+    // campaign scanning against what was actually just saved, not the snapshot
+    // the current run picked up. This is also what fires the first-ever scan
+    // when onboarding saves targets for the first time, since that always
+    // flows through this same POST /api/config path.
+    if (targetsChanged && data.subreddits.length > 0 && data.keywords.length > 0) {
+      try {
+        // The user just chose to (re)watch these targets — clear any stale
+        // pause from a previous cycle so the workflow's own guard doesn't skip
+        // the run below before it gets to re-check the credit balance.
+        await sql`UPDATE campaigns SET paused_reason = NULL WHERE id = ${data.id}`
+
+        if (!data.active_run_id) {
+          // No live chain yet (first save, or a previous chain died/paused) —
+          // start one. chain: true means this run holds active_run_id and
+          // re-enqueues itself after each cycle.
+          await start(scrapeCycleWorkflow, [data.id, true])
+        } else {
+          // A chain is already alive and will naturally pick up these new
+          // targets on its next cycle (it reloads the campaign row fresh each
+          // time) — but that could be hours away. Kick an immediate ad-hoc
+          // pass with the new targets instead, without disturbing the
+          // persistent chain. Guarded on there being no open job already, so
+          // a rapid double-save can't pile up concurrent ad-hoc runs.
+          const openRows = (await sql`
+            SELECT id FROM scrape_jobs WHERE campaign_id = ${data.id} AND finished_at IS NULL LIMIT 1
+          `) as { id: string }[]
+          if (openRows.length === 0) {
+            await start(scrapeCycleWorkflow, [data.id, false])
+          }
+        }
+      } catch (err) {
+        console.error('[config POST] Failed to start scan cycle:', err)
+      }
     }
 
     return NextResponse.json(data)

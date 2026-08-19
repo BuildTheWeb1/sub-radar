@@ -28,12 +28,19 @@ export default function ContentIdeasPage() {
   const [status, setStatus] = useState<Status>('idle')
   const [ideas, setIdeas] = useState<ContentIdeas | null>(null)
   const [hasGenerated, setHasGenerated] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   async function generate() {
     setStatus('loading')
     try {
       const res = await fetch('/api/content-ideas')
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setErrorMessage(
+          res.status === 402
+            ? data.error || 'Not enough credits to generate content ideas.'
+            : null
+        )
         setStatus('error')
         return
       }
@@ -42,6 +49,7 @@ export default function ContentIdeasPage() {
       setHasGenerated(true)
       setStatus('idle')
     } catch {
+      setErrorMessage(null)
       setStatus('error')
     }
   }
@@ -89,7 +97,7 @@ export default function ContentIdeasPage() {
           <Inbox className="h-5 w-5 shrink-0 text-brand-text-muted" />
           <p className="text-sm flex-1">
             <span className="font-semibold text-brand-text">Couldn&apos;t generate content ideas.</span>{' '}
-            <span className="text-brand-text-muted">Something went wrong.</span>
+            <span className="text-brand-text-muted">{errorMessage || 'Something went wrong.'}</span>
           </p>
           <Button variant="outline" size="sm" onClick={generate} className="gap-1.5 shrink-0">
             <RefreshCw className="h-3.5 w-3.5" />

@@ -126,3 +126,62 @@ create index if not exists scrape_jobs_campaign_id_idx on scrape_jobs (campaign_
 -- Partial index for the "is a job running right now?" lookup, which the dashboard
 -- polls every few seconds while a scrape is open.
 create index if not exists scrape_jobs_open_idx on scrape_jobs (user_id, started_at desc) where finished_at is null;
+
+-- Credit-based rate limiting, and the switch from cron-chunked scraping to one
+-- Workflow SDK run per scan cycle (see lib/workflows/scrape-cycle.ts).
+--
+-- New users start with 100 credits (trial plan) — enough for a handful of scan
+-- cycles and AI calls to get a feel for the product before needing to upgrade.
+-- The default lives on the column rather than in application code so it applies
+-- uniformly regardless of how a user row gets created.
+alter table users add column if not exists plan text not null default 'trial';
+alter table users add column if not exists credit_balance integer not null default 100;
+alter table users add column if not exists credits_reset_at timestamptz;
+
+create table if not exists credit_ledger (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  delta integer not null,
+  reason text not null,
+  ref_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists credit_ledger_user_id_idx on credit_ledger (user_id, created_at desc);
+
+-- A campaign now owns its own schedule: next_run_at replaces the cron route's
+-- isCampaignDue() estimate, active_run_id tracks the in-flight workflow run (NULL
+-- when idle), and paused_reason records why a cycle didn't start (e.g.
+-- 'insufficient_credits') until the user resolves it.
+--
+-- scrape_offset and scrape_jobs.pairs_total/pairs_done are NOT dropped here: the
+-- ScraperBar still reads pairs_total/pairs_done for its progress bar, and
+-- scrape_offset is left in place as a safe rollback path. Both are candidates for
+-- removal in a follow-up once the workflow-based scraper has run in production
+-- for a full cycle.
+alter table campaigns add column if not exists paused_reason text;
+alter table campaigns add column if not exists active_run_id text;
+alter table campaigns add column if not exists next_run_at timestamptz;
+
+-- active_run_id represents "this campaign has a live, self-perpetuating scan
+-- chain" (set once when the chain starts, cleared only when the chain stops —
+-- paused or failed), which is a different question from "is a scrape actively
+-- running right now" (answered by an open scrape_jobs row). Conflating the two
+-- caused a bug where the chain-alive flag got cleared on every cycle-to-cycle
+-- transition, letting duplicate self-perpetuating chains stack up. See
+-- lib/workflows/scrape-cycle.ts.
+
+-- Idempotency key for scan-cycle credit charges: ref_id is the charging step's
+-- stable stepId (see getStepMetadata() in lib/workflows/scrape-cycle.ts), so a
+-- retried step's second attempt at the same charge is a guaranteed no-op rather
+-- than a double charge. Scoped to reason = 'scan_cycle' only — other reasons
+-- (e.g. 'content_ideas') intentionally reuse the same ref_id across separate,
+-- individually-billable calls and must not be deduplicated by this index.
+create unique index if not exists credit_ledger_scan_cycle_ref_id_idx
+  on credit_ledger (ref_id) where reason = 'scan_cycle';
+
+-- Idempotency for markRunStartedStep: a retried step re-runs the same insert,
+-- which would otherwise orphan a duplicate scrape_jobs row per attempt. At most
+-- one open (finished_at IS NULL) job per campaign is meaningful anyway, so this
+-- doubles as the arbiter for an upsert-on-retry.
+create unique index if not exists scrape_jobs_open_per_campaign_idx
+  on scrape_jobs (campaign_id) where finished_at is null;

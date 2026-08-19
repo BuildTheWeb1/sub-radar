@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUserId } from '@/lib/auth'
 import { suggestSubredditsAndKeywords } from '@/lib/onboarding'
+import { deductCredits } from '@/lib/credits'
+
+const SUGGEST_COST = 1
 
 /**
  * Suggests subreddits and keywords for a product description. Lives at the top
@@ -15,6 +18,7 @@ import { suggestSubredditsAndKeywords } from '@/lib/onboarding'
 export async function POST(req: NextRequest) {
   const result = await requireUserId()
   if (result instanceof NextResponse) return result
+  const userId = result
 
   const body = await req.json().catch(() => ({}))
   const { productDescription } = body
@@ -31,6 +35,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Product description must be under 2000 characters' },
       { status: 400 }
+    )
+  }
+
+  const spend = await deductCredits(userId, SUGGEST_COST, 'suggest', undefined)
+  if (!spend.ok) {
+    return NextResponse.json(
+      { error: `Not enough credits (need ${SUGGEST_COST}, have ${spend.balance}).` },
+      { status: 402 }
     )
   }
 

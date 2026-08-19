@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { start } from 'workflow/api'
 import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
-import { STALLED_MARKER } from '@/lib/scrape-jobs'
-
-const RATE_LIMIT_MS = 10 * 60 * 1000 // 10 minutes
+import { scrapeCycleWorkflow } from '@/lib/workflows/scrape-cycle'
+import type { Campaign } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
   const result = await requireUserId()
@@ -25,13 +25,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'campaignId is required' }, { status: 400 })
   }
 
-  // Verify the campaign exists and belongs to this user
-  let campaign: { id: string; user_id: string } | null = null
+  // Verify the campaign exists and belongs to this user.
+  let campaign: Campaign | null = null
   try {
     const rows = (await sql`
-      SELECT id, user_id FROM campaigns
-      WHERE id = ${campaignId} AND user_id = ${userId}
-    `) as { id: string; user_id: string }[]
+      SELECT * FROM campaigns WHERE id = ${campaignId} AND user_id = ${userId}
+    `) as Campaign[]
     campaign = rows[0] ?? null
   } catch (campaignError) {
     console.error('[trigger] Failed to look up campaign:', campaignError)
@@ -41,77 +40,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
   }
 
-  // Rate limit: atomically insert a job record, then check if there was a recent one.
-  // We insert the job here (not in the cron route) so concurrent requests see it
-  // immediately, closing the TOCTOU race condition.
-  //
-  // Jobs the status sweep judged dead are excluded: their invocation never did the
-  // work, so letting one hold the lock would tell the user to retry a stalled scan
-  // and then refuse them for the remainder of the ten minutes.
-  let lastJob: { started_at: string } | null = null
+  // Block only while a scrape is genuinely in flight right now — NOT whenever
+  // the campaign has a live self-perpetuating chain (active_run_id), which is
+  // true almost all the time once a campaign is up and running (it stays set
+  // across the chain's inter-cycle sleep). "Run scan" is meant to kick off an
+  // ad-hoc pass even while the chain is alive but currently sleeping — that's
+  // what chain=false below does: a one-shot run that doesn't touch the chain.
+  let openJob: { id: string } | null = null
   try {
     const rows = (await sql`
-      SELECT started_at FROM scrape_jobs
-      WHERE user_id = ${userId}
-        AND (error_message IS NULL OR error_message <> ${STALLED_MARKER})
-      ORDER BY started_at DESC
-      LIMIT 1
-    `) as { started_at: string }[]
-    lastJob = rows[0] ?? null
-  } catch {
-    // Mirrors the original behavior: the rate-limit lookup's result is used only
-    // if present — any failure here is treated as "no prior job" and ignored.
+      SELECT id FROM scrape_jobs WHERE campaign_id = ${campaignId} AND finished_at IS NULL LIMIT 1
+    `) as { id: string }[]
+    openJob = rows[0] ?? null
+  } catch (err) {
+    console.error('[trigger] Failed to check for an open job:', err)
   }
 
-  if (lastJob) {
-    const elapsed = Date.now() - new Date(lastJob.started_at).getTime()
-    if (elapsed < RATE_LIMIT_MS) {
-      const waitSeconds = Math.ceil((RATE_LIMIT_MS - elapsed) / 1000)
+  if (openJob) {
+    return NextResponse.json(
+      { error: 'A scan is already running. Try again once it finishes.' },
+      { status: 429 }
+    )
+  }
+
+  // Check the balance up front so the failure is a clear, immediate error rather
+  // than a workflow run that starts, deducts nothing, and pauses a moment later.
+  const cost = campaign.subreddits.length * campaign.keywords.length
+  if (cost > 0) {
+    const balanceRows = (await sql`
+      SELECT credit_balance FROM users WHERE id = ${userId}
+    `) as { credit_balance: number }[]
+    const balance = balanceRows[0]?.credit_balance ?? 0
+    if (balance < cost) {
       return NextResponse.json(
-        { error: `Rate limited. Try again in ${waitSeconds}s` },
-        { status: 429 }
+        { error: `Not enough credits for this scan (need ${cost}, have ${balance}).` },
+        { status: 402 }
       )
     }
   }
 
-  // Insert the job record here, before firing the background request, so any
-  // concurrent trigger requests will see it and be rate-limited.
-  let job: { id: string } | null = null
+  // The caller has already confirmed credits are sufficient — clear any stale
+  // pause from a previous cycle so the workflow's own paused_reason guard
+  // doesn't skip this run before it gets a chance to re-check the balance.
   try {
-    const rows = (await sql`
-      INSERT INTO scrape_jobs (user_id, campaign_id) VALUES (${userId}, ${campaignId}) RETURNING *
-    `) as { id: string }[]
-    job = rows[0] ?? null
-  } catch (jobError) {
-    console.error('[trigger] Failed to create job record:', jobError)
+    await sql`UPDATE campaigns SET paused_reason = NULL WHERE id = ${campaignId}`
+  } catch (err) {
+    console.error('[trigger] Failed to clear paused_reason:', err)
   }
 
-  if (!job) {
+  try {
+    // chain: false — an ad-hoc, one-shot pass. It must not set/clear
+    // active_run_id or re-enqueue itself, so it can run alongside (or entirely
+    // independent of) whatever self-perpetuating chain this campaign already
+    // has, without forking a second chain.
+    await start(scrapeCycleWorkflow, [campaignId, false])
+  } catch (err) {
+    console.error('[trigger] Failed to start scrape workflow:', err)
     return NextResponse.json({ error: 'Failed to start scrape job' }, { status: 500 })
   }
-
-  // Fire off the cron scrape without awaiting — it runs as an independent request.
-  // The client polls /api/scrape-status to detect completion.
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-
-  // Guard: warn if transmitting CRON_SECRET over plain HTTP in non-development
-  if (process.env.NODE_ENV !== 'development' && !baseUrl.startsWith('https://')) {
-    console.warn('[trigger] WARNING: NEXTAUTH_URL is not HTTPS. CRON_SECRET may be transmitted insecurely.')
-  }
-
-  // Keep the serverless function alive until the cron fetch is dispatched.
-  // Without after(), the invocation can be frozen once the response is sent,
-  // killing the background scrape before it starts.
-  after(async () => {
-    try {
-      await fetch(
-        `${baseUrl}/api/cron/scrape?campaignId=${campaignId}&userId=${userId}&jobId=${job.id}`,
-        { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } }
-      )
-    } catch (err) {
-      console.error('[trigger] cron fetch error:', err)
-    }
-  })
 
   return NextResponse.json({ ok: true, started: true })
 }

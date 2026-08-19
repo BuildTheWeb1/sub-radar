@@ -3,6 +3,9 @@ import { requireUserId } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { getOrCreateCampaign } from '@/lib/campaigns'
 import { generateContentIdeas } from '@/lib/content-ideas'
+import { deductCredits } from '@/lib/credits'
+
+const CONTENT_IDEAS_COST = 3
 
 export async function GET() {
   const result = await requireUserId()
@@ -26,6 +29,14 @@ export async function GET() {
 
   if (!posts || posts.length === 0) {
     return NextResponse.json({ painPoints: [], postIdeas: [] })
+  }
+
+  const spend = await deductCredits(userId, CONTENT_IDEAS_COST, 'content_ideas', campaign.id)
+  if (!spend.ok) {
+    return NextResponse.json(
+      { error: `Not enough credits (need ${CONTENT_IDEAS_COST}, have ${spend.balance}).` },
+      { status: 402 }
+    )
   }
 
   try {

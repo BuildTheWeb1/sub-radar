@@ -2,17 +2,7 @@ import { NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
 import { getOrCreateCampaign } from '@/lib/campaigns'
-import { nextCronTick, describeCronCadence } from '@/lib/schedule'
-import { STALLED_MARKER, STALL_AFTER_MS } from '@/lib/scrape-jobs'
 import type { ScrapeStatus } from '@/lib/types'
-
-const FREQUENCY_HOURS: Record<string, number> = {
-  '1h': 1,
-  '2h': 2,
-  '6h': 6,
-  '12h': 12,
-}
-
 
 interface JobRow {
   id: string
@@ -33,23 +23,6 @@ export async function GET() {
 
   const campaign = await getOrCreateCampaign(userId)
 
-  // Close out this user's dead jobs before reading anything. Nothing else ever
-  // finishes them: the invocation that owned the row is gone. Left open, the
-  // newest-open-job lookup below would keep returning the same corpse after every
-  // later scan succeeded, pinning the dashboard to a permanent "stopped early"
-  // warning while scraping was in fact working.
-  const stallCutoff = new Date(Date.now() - STALL_AFTER_MS).toISOString()
-  try {
-    await sql`
-      UPDATE scrape_jobs
-      SET finished_at = now(), error_message = ${STALLED_MARKER},
-          current_subreddit = NULL, current_keyword = NULL
-      WHERE user_id = ${userId} AND finished_at IS NULL AND started_at < ${stallCutoff}
-    `
-  } catch (err) {
-    console.error('[scrape-status] Failed to sweep stalled jobs:', err)
-  }
-
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
   const [newCountRows, weekCountRows, openJobRows, lastJobRows] = await Promise.all([
@@ -63,13 +36,13 @@ export async function GET() {
     `,
     sql`
       SELECT * FROM scrape_jobs
-      WHERE user_id = ${userId} AND finished_at IS NULL
+      WHERE user_id = ${userId} AND campaign_id = ${campaign.id} AND finished_at IS NULL
       ORDER BY started_at DESC
       LIMIT 1
     `,
     sql`
       SELECT * FROM scrape_jobs
-      WHERE user_id = ${userId} AND finished_at IS NOT NULL
+      WHERE user_id = ${userId} AND campaign_id = ${campaign.id} AND finished_at IS NOT NULL
       ORDER BY finished_at DESC
       LIMIT 1
     `,
@@ -80,52 +53,36 @@ export async function GET() {
   const openJob = (openJobRows as JobRow[])[0] ?? null
   const lastJob = (lastJobRows as JobRow[])[0] ?? null
 
-  // After the sweep, any job still open started within the stall window, so it is
-  // genuinely running. "Stalled" is now a property of the most recent finished
-  // job, which ages out naturally as soon as a later scan completes.
+  // "Running" means a scrape is actively in flight right now, answered by an
+  // open scrape_jobs row — NOT by campaign.active_run_id, which means "this
+  // campaign has a live, self-perpetuating scan chain" and stays set across
+  // the chain's inter-cycle sleep (most of the time, for a healthy campaign).
+  // Conflating the two used to make the dashboard permanently show "running".
   const running = Boolean(openJob)
-  const stalled = !running && lastJob?.error_message === STALLED_MARKER
 
-  const frequency = campaign.scrape_frequency
-  const frequencyHours = FREQUENCY_HOURS[frequency] ?? 2
-  const lastScrapedAt = campaign.last_scraped_at ?? null
-
-  // When the campaign is due is only half the answer: nothing happens until the
-  // platform's cron actually fires. Report the later of the two so the countdown
-  // never promises a scrape earlier than one can physically occur.
-  // The tick has to be measured forward from *now*, not from the due time: an
-  // overdue campaign has a due time in the past, and rounding up from a past
-  // moment yields a past tick — which the UI would render as "next 3 hours ago".
-  let nextScrapeAt: string | null = null
-  if (lastScrapedAt) {
-    const now = new Date()
-    const dueAt = new Date(new Date(lastScrapedAt).getTime() + frequencyHours * 60 * 60 * 1000)
-    nextScrapeAt = nextCronTick(dueAt > now ? dueAt : now).toISOString()
-  } else {
-    nextScrapeAt = nextCronTick().toISOString()
-  }
-
-  // Mid-cycle, the campaign cursor is the authority on how far the cycle got —
-  // it survives across invocations, whereas a finished job row only describes
-  // the chunk it personally ran.
-  const pairsTotal =
-    openJob?.pairs_total ||
-    campaign.subreddits.length * campaign.keywords.length ||
-    0
-  const pairsDone = openJob
-    ? openJob.pairs_done
-    : campaign.scrape_offset > 0
-      ? campaign.scrape_offset
-      : 0
+  // The old cron-based scraper's stall sweep (a job open past a fixed timeout got
+  // stamped "stalled") doesn't have a workflow-native equivalent: a run's
+  // event log is the SDK's own concern, and there's no cheap "is this run
+  // actually still alive" check available here without querying the SDK's own
+  // run-status API per poll. A dead chain run is no longer a silent, permanent
+  // lockout though — scrapeCycleWorkflow's own failure handling
+  // (markRunFailedStep) clears active_run_id and stamps error_message /
+  // next_run_at on a genuine failure, so it surfaces via last_error below and
+  // the reconcile cron picks the campaign back up on its next pass. This field
+  // is left hard-coded false for now rather than inventing a new heuristic on
+  // top of that.
+  const stalled = false
 
   const status: ScrapeStatus = {
     running,
     stalled,
-    last_scraped_at: lastScrapedAt,
-    next_scrape_at: nextScrapeAt,
-    cadence: describeCronCadence(),
-    pairs_done: pairsDone,
-    pairs_total: pairsTotal,
+    last_scraped_at: campaign.last_scraped_at,
+    next_scrape_at: campaign.next_run_at,
+    cadence: `every ${campaign.scrape_frequency}`,
+    pairs_done: running ? (openJob?.pairs_done ?? 0) : 0,
+    pairs_total: running
+      ? openJob?.pairs_total || campaign.subreddits.length * campaign.keywords.length || 0
+      : 0,
     current_subreddit: running ? openJob?.current_subreddit ?? null : null,
     current_keyword: running ? openJob?.current_keyword ?? null : null,
     last_posts_found: lastJob?.posts_found ?? 0,
@@ -133,7 +90,8 @@ export async function GET() {
     last_error: lastJob?.error_message ?? null,
     new_count: newCount,
     week_count: weekCount,
-    frequency,
+    frequency: campaign.scrape_frequency,
+    paused_reason: campaign.paused_reason,
   }
 
   return NextResponse.json(status)

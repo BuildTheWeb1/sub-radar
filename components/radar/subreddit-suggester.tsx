@@ -90,6 +90,7 @@ export function SubredditSuggester({
         // the user nothing to act on and hides whether the problem is their
         // input, their session, or the server.
         if (res.status === 401) throw new Error('Your session expired. Reload the page and sign in again.')
+        if (res.status === 402) throw new Error(data.error || 'Not enough credits to generate suggestions.')
         if (res.status === 400 && data.error) throw new Error(data.error)
         throw new Error(
           data.error === 'suggestion_failed'

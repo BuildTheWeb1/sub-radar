@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
-import { STALLED_MARKER } from '@/lib/scrape-jobs'
 import type { ScrapeStatus } from '@/lib/types'
 
 // Poll hard while a scrape is genuinely open, and back off to a heartbeat when it
@@ -103,7 +102,11 @@ export function ScraperBar() {
       const data = await res.json().catch(() => ({}))
 
       if (res.status === 429) {
-        toast.error(data.error || 'A scan ran recently. Try again in a few minutes.')
+        toast.error(data.error || 'A scan is already running.')
+        return
+      }
+      if (res.status === 402) {
+        toast.error(data.error || 'Not enough credits to run this scan.')
         return
       }
       if (!res.ok) {
@@ -136,7 +139,12 @@ export function ScraperBar() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between gap-4 py-2.5 min-h-11">
           <div className="min-w-0 flex items-center gap-2.5 text-sm">
-            <StatusDot running={running} stalled={status?.stalled ?? false} error={!!status?.last_error} />
+            <StatusDot
+              running={running}
+              stalled={status?.stalled ?? false}
+              error={!!status?.last_error}
+              paused={!!status?.paused_reason}
+            />
             <Message
               status={status}
               running={running}
@@ -195,12 +203,14 @@ function StatusDot({
   running,
   stalled,
   error,
+  paused,
 }: {
   running: boolean
   stalled: boolean
   error: boolean
+  paused: boolean
 }) {
-  if (stalled || error) {
+  if (stalled || error || paused) {
     return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
   }
   // Static when static. The dot only breathes while pairs are actually being
@@ -253,6 +263,14 @@ function Message({
     )
   }
 
+  if (status.paused_reason === 'insufficient_credits') {
+    return (
+      <span className="truncate text-brand-text">
+        Scanning paused — out of credits. Top up to resume.
+      </span>
+    )
+  }
+
   if (status.stalled) {
     return (
       <span className="truncate text-brand-text">
@@ -261,7 +279,7 @@ function Message({
     )
   }
 
-  if (status.last_error && status.last_error !== STALLED_MARKER) {
+  if (status.last_error) {
     return (
       <span className="truncate text-brand-text">
         Last scan failed: <span className="text-brand-text-muted">{status.last_error}</span>

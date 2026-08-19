@@ -31,6 +31,12 @@ export interface Campaign {
   last_scraped_at: string | null
   created_at: string
   updated_at: string
+  /** Why the workflow-based scan cycle didn't (re)start, e.g. 'insufficient_credits'. Null when active. */
+  paused_reason: string | null
+  /** The in-flight scrapeCycleWorkflow run's id, or null when no cycle is running. */
+  active_run_id: string | null
+  /** When the next scan cycle is scheduled to start. */
+  next_run_at: string | null
 }
 
 export interface Config {
@@ -80,6 +86,8 @@ export interface ScrapeStatus {
   new_count: number
   week_count: number
   frequency: string
+  /** Why the scan cycle didn't (re)start, e.g. 'insufficient_credits'. Null when not paused. */
+  paused_reason: string | null
 }
 
 export interface Reply {

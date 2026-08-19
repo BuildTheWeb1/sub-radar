@@ -21,8 +21,9 @@ const MODEL = 'claude-haiku-4-5-20251001'
 // min_relevance is above 0. Hence the hard "1-4 words, no questions" rule below.
 //
 // Counts are deliberately modest: subreddits x keywords becomes the campaign's pair
-// list, and scrapeChunk() only gets through ~5-6 pairs per cron invocation, so 8x12
-// would take ~20 runs to cover once. 6x8 keeps a full cycle within a few runs.
+// list, which the workflow scans pair-by-pair within a single cycle run — and also
+// sets the credit cost of that cycle (see deductCycleCreditsStep in
+// lib/workflows/scrape-cycle.ts). 6x8 keeps a cycle's cost and runtime reasonable.
 const SYSTEM_PROMPT = `You are an expert at Reddit community research and customer discovery. Given a short product description, you identify where the product's target users actually hang out on Reddit and the literal phrases they use when discussing the problem the product solves.
 
 Respond with STRICT JSON only — no markdown code fences, no prose before or after. The JSON must match exactly this shape:
