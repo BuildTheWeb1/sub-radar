@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Link from 'next/link'
-import { Inbox } from 'lucide-react'
+import { Inbox, Lightbulb } from 'lucide-react'
 import { SCRAPE_FINISHED_EVENT } from './scraper-bar'
 
 interface Filters {
@@ -26,11 +26,27 @@ interface Filters {
 interface PostFeedProps {
   defaultStatus?: string
   title: string
+  /** Shows the status picker (New/Replied/Saved/Ignored/All) instead of a fixed
+   * status. Only Leads sets this — Saved keeps its own dedicated, always-saved view. */
+  statusFilterable?: boolean
+  /** Shows a low-key link into Content Ideas. Only Leads sets this — it's the one
+   * place a user is already looking at real posts and might want to write about them. */
+  showContentIdeasLink?: boolean
+  /** Initial relevance floor. Only Leads raises this (see the page's own comment) —
+   * Saved and the Replied filter must default to 0, since a post the user already
+   * bookmarked or replied to shouldn't disappear because it scored low. */
+  defaultMinRelevance?: string
 }
 
 const LIMIT = 25
 
-export function PostFeed({ defaultStatus, title }: PostFeedProps) {
+export function PostFeed({
+  defaultStatus,
+  title,
+  statusFilterable,
+  showContentIdeasLink,
+  defaultMinRelevance,
+}: PostFeedProps) {
   const [posts, setPosts] = useState<Post[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -39,7 +55,7 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
   const [filters, setFilters] = useState<Filters>({
     status: defaultStatus ?? 'all',
     sortBy: 'relevance',
-    minRelevance: '0',
+    minRelevance: defaultMinRelevance ?? '0',
   })
 
   const fetchPosts = useCallback(
@@ -120,7 +136,18 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
       {/* Header + controls */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-lg font-semibold">{title}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">{title}</h1>
+            {showContentIdeasLink && (
+              <Link
+                href="/dashboard/content-ideas"
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand-accent hover:underline"
+              >
+                <Lightbulb className="h-3.5 w-3.5" />
+                Content ideas
+              </Link>
+            )}
+          </div>
           {loading && posts.length === 0 ? (
             <Skeleton className="h-3 w-32 mt-1" />
           ) : (
@@ -130,6 +157,23 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {statusFilterable && (
+            <Select
+              value={filters.status}
+              onValueChange={(v) => setFilters((f) => ({ ...f, status: v ?? undefined }))}
+            >
+              <SelectTrigger className="w-28 h-8 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="new">New</SelectItem>
+                <SelectItem value="replied">Replied</SelectItem>
+                <SelectItem value="saved">Saved</SelectItem>
+                <SelectItem value="ignored">Ignored</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Select
             value={filters.sortBy}
             onValueChange={(v) => setFilters((f) => ({ ...f, sortBy: v ?? undefined }))}
@@ -179,9 +223,16 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-brand-text">Nothing here yet</p>
             <p className="text-sm text-brand-text-muted max-w-prose">
-              Either no post matched your keywords, or the filters above are too narrow.{' '}
+              Either no post matched your keywords, or the filters above are too narrow — try{' '}
+              <button
+                onClick={() => setFilters((f) => ({ ...f, minRelevance: '0' }))}
+                className="font-medium text-brand-accent hover:underline"
+              >
+                All scores
+              </button>
+              . Or{' '}
               <Link href="/dashboard/radar" className="font-medium text-brand-accent hover:underline">
-                Check what you&apos;re watching
+                check what you&apos;re watching
               </Link>{' '}
               to add subreddits and keywords.
             </p>
@@ -194,7 +245,7 @@ export function PostFeed({ defaultStatus, title }: PostFeedProps) {
               key={post.id}
               post={post}
               onStatusChange={handleStatusChange}
-              risk={guidelines[post.subreddit.toLowerCase()]?.risk}
+              guideline={guidelines[post.subreddit.toLowerCase()]}
             />
           ))}
           {hasMore && (

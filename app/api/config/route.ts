@@ -112,11 +112,12 @@ export async function POST(req: NextRequest) {
     // the current run picked up. This is also what fires the first-ever scan
     // when onboarding saves targets for the first time, since that always
     // flows through this same POST /api/config path.
-    // Tracks whether this request already kicked off a scan, so the caller (the
-    // Radar page's "Save & scan now") knows not to also hit /api/scrape/trigger —
-    // without this, a targets-changed save plus an explicit "scan now" click
-    // started two separate workflow runs against the same pairs, double-billing
-    // credits and double-scraping Reddit for one user action.
+    // Tracks whether this request already kicked off a scan, so a caller whose
+    // save changed targets (the Radar page) knows whether it still needs its own
+    // fallback trigger — e.g. when a job was already open and the start below was
+    // skipped. Without this a targets-changed save could fire two separate
+    // workflow runs against the same pairs, double-billing credits and
+    // double-scraping Reddit for one user action.
     let scanStarted = false
     if (targetsChanged && data.subreddits.length > 0 && data.keywords.length > 0) {
       try {

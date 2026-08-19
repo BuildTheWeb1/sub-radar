@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { ChevronDown } from 'lucide-react'
 import type { Campaign, SubredditGuideline } from '@/lib/types'
 import type { RadarPayload } from '@/app/api/radar/route'
 import { SubredditSuggester } from '@/components/radar/subreddit-suggester'
@@ -27,6 +28,12 @@ export default function RadarPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [productDescription, setProductDescription] = useState('')
   const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([])
+  // Keywords are an implementation detail (verbatim substring matches under the
+  // hood) — most users should never need to see or touch them. Collapsed by
+  // default; the save() guard below flips this to true instead of submitting
+  // when subreddits are watched but the keyword list is empty, since that
+  // combination means nothing would ever get searched.
+  const [keywordsExpanded, setKeywordsExpanded] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -75,8 +82,29 @@ export default function RadarPage() {
     })
   }
 
-  async function save(thenScan: boolean) {
+  // One button, one behavior: saving always scans when targets actually changed.
+  // /api/config starts that scan itself in the common case (see scanStarted in
+  // its response) — but it deliberately skips starting one when a job is already
+  // open for this campaign (see the guard in /api/config's POST handler), so a
+  // save that changed targets while a scan was mid-flight would otherwise save
+  // silently with no signal that the new targets aren't being watched yet. The
+  // fallback below covers exactly that gap; it's the same call the old "Save &
+  // scan now" button made, just triggered by target-dirtiness instead of a
+  // second button.
+  async function save() {
     if (!campaign) return
+    // Unlike onboarding, an already-configured campaign is allowed to save with
+    // both lists empty — that's how a user pauses targeting entirely without
+    // deleting the campaign. Only guard the combination that's never useful:
+    // subreddits with nothing to search them for.
+    if (subreddits.length > 0 && keywords.length === 0) {
+      setKeywordsExpanded(true)
+      toast.error('Add at least one keyword so there is something to search')
+      return
+    }
+    const targetsChanged =
+      JSON.stringify(subreddits) !== JSON.stringify(campaign.subreddits ?? []) ||
+      JSON.stringify(keywords) !== JSON.stringify(campaign.keywords ?? [])
     setSaving(true)
     try {
       const res = await fetch('/api/config', {
@@ -97,12 +125,7 @@ export default function RadarPage() {
       setCampaign(data as Campaign)
       toast.success('Radar updated')
 
-      // /api/config already starts a scan itself whenever targets actually
-      // changed (see scanStarted below) — only fall back to an explicit trigger
-      // when it didn't, e.g. the user clicked "Save & scan now" without changing
-      // subreddits/keywords. Calling both would double-scan and double-charge
-      // credits for one click.
-      if (thenScan && !(data as Campaign & { scanStarted?: boolean }).scanStarted) {
+      if (targetsChanged && !(data as Campaign & { scanStarted?: boolean }).scanStarted) {
         const scanRes = await fetch('/api/scrape/trigger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -175,7 +198,14 @@ export default function RadarPage() {
             existing={subreddits}
             remainingSlots={remainingSlots}
             onAdd={addSubreddits}
-            onKeywords={setKeywordSuggestions}
+            onKeywords={(kws) => {
+              setKeywordSuggestions(kws)
+              // Keywords are implementation detail, not a decision most users want
+              // to make — auto-apply the model's suggestions the same way
+              // onboarding does, so accepting the defaults produces a working
+              // setup without ever opening the (collapsed) editor below.
+              setKeywords((prev) => (prev.length === 0 ? kws.slice(0, 8) : prev))
+            }}
           />
         )}
 
@@ -199,11 +229,26 @@ export default function RadarPage() {
         {loading ? (
           <Skeleton className="h-32 w-full" />
         ) : (
-          <KeywordEditor
-            keywords={keywords}
-            onChange={setKeywords}
-            suggestions={keywordSuggestions}
-          />
+          <div className="space-y-3">
+            <button
+              onClick={() => setKeywordsExpanded((v) => !v)}
+              className="flex items-center gap-1.5 text-sm font-medium text-brand-text-muted hover:text-brand-text"
+              aria-expanded={keywordsExpanded}
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform ${keywordsExpanded ? 'rotate-180' : ''}`} />
+              Advanced: edit search phrases
+              <span className="tabular-nums text-xs">({keywords.length})</span>
+            </button>
+            {keywordsExpanded && (
+              <div className="animate-fade-up">
+                <KeywordEditor
+                  keywords={keywords}
+                  onChange={setKeywords}
+                  suggestions={keywordSuggestions}
+                />
+              </div>
+            )}
+          </div>
         )}
       </section>
 
@@ -228,11 +273,8 @@ export default function RadarPage() {
             >
               Discard
             </Button>
-            <Button variant="outline" size="sm" disabled={saving} onClick={() => save(false)}>
-              Save
-            </Button>
-            <Button size="sm" disabled={saving} onClick={() => save(true)}>
-              {saving ? 'Saving…' : 'Save & scan now'}
+            <Button size="sm" disabled={saving} onClick={() => save()}>
+              {saving ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </div>

@@ -3,18 +3,22 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Bookmark, History, Settings, Lightbulb, Radar } from 'lucide-react'
+import { LayoutDashboard, Bookmark, Settings, Radar } from 'lucide-react'
 
 // Radar sits second because targeting is what the product does, not a preference —
-// it decides what ends up in the feed. Settings keeps the things you set once and
-// forget, and is dropped from the mobile bar (where it would be the sixth item in a
-// 375px-wide row) since the avatar menu already reaches it.
+// it decides what ends up in Leads. Settings keeps the things you set once and
+// forget, and is dropped from the mobile bar (where it would be the fourth item in
+// a 375px-wide row) — reachable from desktop nav, just not the mobile tab bar.
+//
+// History and Content Ideas used to be sibling nav destinations. History is now a
+// status filter inside Leads (see post-feed.tsx) instead of a separate page — reply
+// history isn't a different kind of thing, it's the same leads with a different
+// status. Content Ideas is reachable from a link on the Leads page instead of
+// living in the corridor a user has to learn before seeing a single lead.
 const navItems = [
-  { href: '/dashboard', label: 'Feed', mobileLabel: 'Feed', icon: LayoutDashboard, exact: true, mobile: true },
+  { href: '/dashboard', label: 'Leads', mobileLabel: 'Leads', icon: LayoutDashboard, exact: true, mobile: true },
   { href: '/dashboard/radar', label: 'Radar', mobileLabel: 'Radar', icon: Radar, mobile: true },
   { href: '/dashboard/saved', label: 'Saved', mobileLabel: 'Saved', icon: Bookmark, mobile: true },
-  { href: '/dashboard/content-ideas', label: 'Content Ideas', mobileLabel: 'Ideas', icon: Lightbulb, mobile: true },
-  { href: '/dashboard/history', label: 'History', mobileLabel: 'History', icon: History, mobile: true },
   { href: '/settings', label: 'Settings', mobileLabel: 'Settings', icon: Settings, exact: true, mobile: false },
 ]
 

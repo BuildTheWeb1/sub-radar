@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { SubredditSuggester } from '@/components/radar/subreddit-suggester'
 import { SubredditAdder } from '@/components/radar/subreddit-adder'
 import { KeywordEditor } from '@/components/radar/keyword-editor'
-import { X } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 
 const MIN_DESCRIPTION_LENGTH = 20
 const MAX_SUBREDDITS = 10
@@ -23,6 +23,9 @@ export default function OnboardingPage() {
   const [subreddits, setSubreddits] = useState<string[]>([])
   const [keywords, setKeywords] = useState<string[]>([])
   const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([])
+  // Keywords auto-fill from the same suggestion call below — collapsed by default
+  // so accepting the defaults means never seeing this at all.
+  const [keywordsExpanded, setKeywordsExpanded] = useState(false)
 
   const canContinue = productDescription.trim().length >= MIN_DESCRIPTION_LENGTH
   const remainingSlots = Math.max(0, MAX_SUBREDDITS - subreddits.length)
@@ -36,8 +39,13 @@ export default function OnboardingPage() {
   }
 
   async function handleFinish() {
-    if (subreddits.length === 0 || keywords.length === 0) {
-      toast.error('Pick at least one subreddit and one keyword so there is something to search')
+    if (subreddits.length === 0) {
+      toast.error('Pick at least one subreddit so there is something to search')
+      return
+    }
+    if (keywords.length === 0) {
+      setKeywordsExpanded(true)
+      toast.error('Add at least one keyword so there is something to search')
       return
     }
     setSaving(true)
@@ -158,11 +166,26 @@ export default function OnboardingPage() {
               />
             </section>
 
-            <KeywordEditor
-              keywords={keywords}
-              onChange={setKeywords}
-              suggestions={keywordSuggestions}
-            />
+            <div className="space-y-3">
+              <button
+                onClick={() => setKeywordsExpanded((v) => !v)}
+                className="flex items-center gap-1.5 text-sm font-medium text-brand-text-muted hover:text-brand-text"
+                aria-expanded={keywordsExpanded}
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${keywordsExpanded ? 'rotate-180' : ''}`} />
+                Advanced: edit search phrases
+                <span className="tabular-nums text-xs">({keywords.length})</span>
+              </button>
+              {keywordsExpanded && (
+                <div className="animate-fade-up">
+                  <KeywordEditor
+                    keywords={keywords}
+                    onChange={setKeywords}
+                    suggestions={keywordSuggestions}
+                  />
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setStep(1)} disabled={saving}>

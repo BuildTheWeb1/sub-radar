@@ -3,16 +3,23 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { BanRiskBadge, BanRisk } from '@/components/ban-risk-badge'
-import { Post, PostStatus } from '@/lib/types'
-import { ExternalLink, CheckCircle, EyeOff, Bookmark, BookmarkCheck } from 'lucide-react'
+import { BanRiskBadge } from '@/components/ban-risk-badge'
+import { Post, PostStatus, SubredditGuideline } from '@/lib/types'
+import { ExternalLink, CheckCircle, EyeOff, Bookmark, BookmarkCheck, ChevronDown } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 
 interface PostCardProps {
   post: Post
   onStatusChange?: (id: string, status: PostStatus) => void
-  risk?: BanRisk
+  guideline?: SubredditGuideline
+}
+
+const SELF_PROMO_LABEL: Record<SubredditGuideline['self_promo_policy'], string> = {
+  allowed: 'Self-promo OK here.',
+  limited: 'Value-first replies only — keep pitches light.',
+  banned: 'No self-promo or links — reply as a genuine participant, not a marketer.',
+  unknown: "Self-promo policy isn't known — read the room before pitching.",
 }
 
 // Same three-tier palette as BanRiskBadge's risk levels (ban-risk-badge.tsx) — relevance and
@@ -29,8 +36,9 @@ function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outl
   return 'outline'
 }
 
-export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
+export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
   const [loading, setLoading] = useState<PostStatus | null>(null)
+  const [ruleOpen, setRuleOpen] = useState(false)
 
   async function updateStatus(status: PostStatus) {
     if (loading) return
@@ -73,7 +81,18 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
         <span className="font-semibold text-brand-accent">r/{post.subreddit}</span>
-        {risk && <BanRiskBadge risk={risk} />}
+        {guideline?.risk && (
+          <button
+            onClick={() => setRuleOpen((v) => !v)}
+            className="inline-flex items-center gap-0.5"
+            aria-expanded={ruleOpen}
+          >
+            <BanRiskBadge risk={guideline.risk} />
+            <ChevronDown
+              className={`h-3 w-3 text-brand-text-muted transition-transform ${ruleOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+        )}
         <span>·</span>
         <span>{post.upvotes} pts</span>
         <span>·</span>
@@ -89,6 +108,21 @@ export function PostCard({ post, onStatusChange, risk }: PostCardProps) {
           </>
         )}
       </div>
+
+      {/* Distilled at the moment it matters — when the user is looking at a real
+          post and deciding whether/how to reply — rather than once, up front, on
+          the Radar targeting list where it's read once and forgotten. */}
+      {guideline?.risk && (
+        <div className="slide-message" data-open={ruleOpen}>
+          <div>
+            <p className="rounded-md bg-brand-foreground px-3 py-2 text-xs text-brand-text">
+              {SELF_PROMO_LABEL[guideline.self_promo_policy]}
+              {guideline.min_karma != null && ` Needs ${guideline.min_karma}+ karma.`}
+              {guideline.cadence_note && ` ${guideline.cadence_note}`}
+            </p>
+          </div>
+        </div>
+      )}
 
       {post.body && (
         <p className="text-xs text-muted-foreground line-clamp-2">{post.body}</p>

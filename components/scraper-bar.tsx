@@ -243,22 +243,12 @@ function Message({
   }
 
   if (running) {
-    const target =
-      status.current_subreddit && status.current_keyword ? (
-        <>
-          <span className="font-medium text-brand-text-strong">r/{status.current_subreddit}</span>
-          <span className="text-brand-text-muted"> for “{status.current_keyword}”</span>
-        </>
-      ) : (
-        <span className="text-brand-text-muted">starting up</span>
-      )
+    // No pair-level narration ("r/X for 'Y'") — that's internals, not something a
+    // user needs to watch happen. One calm line, same for every breakpoint.
     return (
       <span className="truncate">
-        Searching {target}
-        <span className="sm:hidden text-brand-text-muted tabular-nums">
-          {' '}
-          · {pairsDone}/{pairsTotal}
-        </span>
+        <span className="font-medium text-brand-text-strong">Scanning…</span>
+        <span className="text-brand-text-muted tabular-nums"> {pairsDone}/{pairsTotal}</span>
       </span>
     )
   }
@@ -317,8 +307,7 @@ function Message({
       {status.next_scrape_at && (
         <span className="hidden sm:inline">
           {' '}
-          · next {formatDistanceToNow(new Date(status.next_scrape_at), { addSuffix: true })}
-          <span className="hidden lg:inline"> · scheduled scans run {status.cadence}</span>
+          · next scan {formatDistanceToNow(new Date(status.next_scrape_at), { addSuffix: true })}
         </span>
       )}
     </span>
