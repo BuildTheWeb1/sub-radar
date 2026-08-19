@@ -3,8 +3,7 @@ import { requireUserId } from '@/lib/auth'
 import { getOrCreateCampaign } from '@/lib/campaigns'
 import { generateContentIdeas, getContentIdeasSourcePosts } from '@/lib/content-ideas'
 import { deductCredits } from '@/lib/credits'
-
-const CONTENT_IDEAS_COST = 3
+import { CONTENT_IDEAS_COST } from '@/lib/credit-costs'
 
 export async function GET() {
   const result = await requireUserId()

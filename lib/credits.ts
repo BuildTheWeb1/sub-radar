@@ -7,6 +7,19 @@ export interface DeductCreditsResult {
 }
 
 /**
+ * Current credit balance for a user. Read-only counterpart to deductCredits —
+ * exists so the UI has something to show a balance from at all. Before this,
+ * credit_balance was written and checked server-side but never sent to the
+ * client, so a user could only discover it existed by hitting a 402.
+ */
+export async function getCreditBalance(userId: string): Promise<number> {
+  const rows = (await sql`
+    SELECT credit_balance FROM users WHERE id = ${userId}
+  `) as { credit_balance: number }[]
+  return rows[0]?.credit_balance ?? 0
+}
+
+/**
  * Atomically deduct `amount` credits from a user's balance and record the spend
  * in credit_ledger, or do nothing if the balance is insufficient.
  *

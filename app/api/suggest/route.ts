@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUserId } from '@/lib/auth'
 import { suggestSubredditsAndKeywords } from '@/lib/onboarding'
 import { deductCredits } from '@/lib/credits'
-
-const SUGGEST_COST = 1
+import { SUGGEST_COST } from '@/lib/credit-costs'
 
 /**
  * Suggests subreddits and keywords for a product description. Lives at the top

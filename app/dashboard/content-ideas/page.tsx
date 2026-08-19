@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Lightbulb, Sparkles, RefreshCw, Inbox } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
+import { CONTENT_IDEAS_COST } from '@/lib/credit-costs'
+import { pluralize } from '@/lib/utils'
 
 interface PainPoint {
   theme: string
@@ -71,14 +73,22 @@ export default function ContentIdeasPage() {
             Twitter.
           </p>
         </div>
-        <Button onClick={generate} disabled={status === 'loading'} className="gap-1.5 shrink-0">
-          <Sparkles className="h-4 w-4" />
-          {status === 'loading'
-            ? 'Generating…'
-            : hasGenerated
-              ? 'Regenerate'
-              : 'Generate content ideas'}
-        </Button>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <Button onClick={generate} disabled={status === 'loading'} className="gap-1.5">
+            <Sparkles className="h-4 w-4" />
+            {status === 'loading'
+              ? 'Generating…'
+              : hasGenerated
+                ? 'Regenerate'
+                : 'Generate content ideas'}
+          </Button>
+          {/* "Up to", not a flat price: the route charges nothing when there are no
+              posts to mine yet (see app/api/content-ideas/route.ts) — this stays
+              accurate on a fresh campaign without needing to know that in advance. */}
+          <p className="text-xs text-brand-text-muted">
+            Up to {pluralize(CONTENT_IDEAS_COST, 'credit')}
+          </p>
+        </div>
       </div>
 
       {status === 'loading' && (

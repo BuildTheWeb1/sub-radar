@@ -6,6 +6,8 @@ import { BanRiskBadge } from '@/components/ban-risk-badge'
 import { Sparkles, Loader2, Check, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SubredditCheck } from '@/lib/types'
+import { SUGGEST_COST } from '@/lib/credit-costs'
+import { pluralize } from '@/lib/utils'
 import { formatMembers } from './format'
 
 export interface SubredditSuggestion {
@@ -165,10 +167,12 @@ export function SubredditSuggester({
             </>
           )}
         </Button>
-        {!describedEnough && (
+        {!describedEnough ? (
           <p className="text-sm text-brand-text-muted">
             Describe your product first so suggestions have something to go on.
           </p>
+        ) : (
+          <p className="text-xs text-brand-text-muted">{pluralize(SUGGEST_COST, 'credit')}</p>
         )}
       </div>
 

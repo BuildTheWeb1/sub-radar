@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import type { Campaign, SubredditGuideline } from '@/lib/types'
 import type { RadarPayload } from '@/app/api/radar/route'
+import { pluralize } from '@/lib/utils'
 import { SubredditSuggester } from '@/components/radar/subreddit-suggester'
 import { SubredditAdder } from '@/components/radar/subreddit-adder'
 import { TargetList } from '@/components/radar/target-list'
@@ -148,6 +149,11 @@ export default function RadarPage() {
 
   const remainingSlots = Math.max(0, MAX_SUBREDDITS - subreddits.length)
   const hasScraped = Boolean(campaign?.last_scraped_at)
+  // Scan cost is subreddits × keywords, charged per cycle (see
+  // scrapeCycleWorkflow in lib/workflows/scrape-cycle.ts) — the one cost in the
+  // app that scales with how thoroughly a campaign is configured, so it's worth
+  // showing live as targets change rather than only after a 402.
+  const scanCost = subreddits.length * keywords.length
 
   return (
     <div className="max-w-2xl space-y-10 pb-24">
@@ -157,6 +163,16 @@ export default function RadarPage() {
           The subreddits and keywords the scanner searches. Every post in your feed came from
           a pairing of the two.
         </p>
+        {scanCost > 0 && (
+          // "Will cost", not "costs": this reads the page's working-copy state,
+          // which may include edits not saved yet — the number is a preview of
+          // what saving would commit to, not a statement about the already-saved
+          // campaign a cron cycle would actually charge right now.
+          <p className="text-xs text-brand-text-muted">
+            Next scan will cost {pluralize(scanCost, 'credit')} ({pluralize(subreddits.length, 'subreddit')} ×{' '}
+            {pluralize(keywords.length, 'keyword')})
+          </p>
+        )}
       </header>
 
       {loadError && (
