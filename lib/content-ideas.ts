@@ -1,5 +1,7 @@
 import 'server-only'
 import Anthropic from '@anthropic-ai/sdk'
+import { sql } from './db'
+import type { Campaign } from './types'
 
 export interface PainPoint {
   theme: string
@@ -21,6 +23,36 @@ interface ContentIdeasPost {
   title: string
   body: string | null
   subreddit: string
+}
+
+const RELEVANCE_FLOOR = 20
+
+/**
+ * Posts eligible to be mined for content ideas: scoped to what's currently
+ * being watched, same as Leads' default view (subreddit currently in the
+ * campaign's target list, and relevance_score >= RELEVANCE_FLOOR — one
+ * verbatim keyword match, see scoreRelevance in lib/scraper.ts).
+ *
+ * Without this scoping, retargeting a campaign (dropping some subreddits,
+ * adding others) leaves old posts from the abandoned subreddits sitting in
+ * this table forever under the same campaign_id — and since they're often
+ * the highest-upvoted rows from whatever niche was scraped first, an
+ * unscoped "top N by upvotes" query would keep mining them long after they
+ * stopped having anything to do with what Radar/Leads show today.
+ */
+export async function getContentIdeasSourcePosts(
+  userId: string,
+  campaign: Pick<Campaign, 'id' | 'subreddits'>,
+  limit = 20
+): Promise<ContentIdeasPost[]> {
+  return (await sql`
+    SELECT title, body, subreddit FROM posts
+    WHERE user_id = ${userId} AND campaign_id = ${campaign.id}
+      AND subreddit = ANY(${campaign.subreddits}::text[])
+      AND relevance_score >= ${RELEVANCE_FLOOR}
+    ORDER BY upvotes DESC, scraped_at DESC
+    LIMIT ${limit}
+  `) as ContentIdeasPost[]
 }
 
 const MODEL = 'claude-haiku-4-5-20251001'

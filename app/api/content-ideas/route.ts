@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireUserId } from '@/lib/auth'
-import { sql } from '@/lib/db'
 import { getOrCreateCampaign } from '@/lib/campaigns'
-import { generateContentIdeas } from '@/lib/content-ideas'
+import { generateContentIdeas, getContentIdeasSourcePosts } from '@/lib/content-ideas'
 import { deductCredits } from '@/lib/credits'
 
 const CONTENT_IDEAS_COST = 3
@@ -14,14 +13,9 @@ export async function GET() {
 
   const campaign = await getOrCreateCampaign(userId)
 
-  let posts: { title: string; body: string | null; subreddit: string }[]
+  let posts: Awaited<ReturnType<typeof getContentIdeasSourcePosts>>
   try {
-    posts = (await sql`
-      SELECT title, body, subreddit FROM posts
-      WHERE user_id = ${userId} AND campaign_id = ${campaign.id}
-      ORDER BY upvotes DESC, scraped_at DESC
-      LIMIT 20
-    `) as { title: string; body: string | null; subreddit: string }[]
+    posts = await getContentIdeasSourcePosts(userId, campaign)
   } catch (err) {
     console.error('[content-ideas GET] Failed to query posts:', err)
     return NextResponse.json({ error: 'ideas_failed' }, { status: 500 })
