@@ -5,11 +5,20 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BanRiskBadge } from '@/components/ban-risk-badge'
 import { Post, PostStatus, SubredditGuideline } from '@/lib/types'
-import { ExternalLink, CheckCircle, EyeOff, Bookmark, BookmarkCheck, ChevronDown } from 'lucide-react'
+import {
+  ExternalLink,
+  CheckCircle,
+  EyeOff,
+  Bookmark,
+  BookmarkCheck,
+  ChevronDown,
+  Lightbulb,
+} from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { pluralize } from '@/lib/utils'
+import { POST_CONTENT_IDEA_COST } from '@/lib/credit-costs'
 
 interface PostCardProps {
   post: Post
@@ -33,11 +42,14 @@ function relevanceColor(score: number) {
 }
 
 // The score itself is unlabeled in the badge (just a bare number, to stay
-// compact) — this is what the tooltip below fills in.
+// compact) — this is what the tooltip below fills in. Labeled "keyword match"
+// rather than "relevance": the score is a literal keyword-occurrence count
+// (see scoreRelevance in lib/scraper.ts), not a judgment of topical fit, and
+// naming it otherwise overstates what it actually measures.
 function relevanceLabel(score: number) {
-  if (score >= 70) return 'Strong match'
-  if (score >= 40) return 'Some overlap'
-  return 'Weak match'
+  if (score >= 70) return 'Strong keyword match'
+  if (score >= 40) return 'Some keyword overlap'
+  return 'Weak keyword match'
 }
 
 function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outline' {
@@ -46,9 +58,19 @@ function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outl
   return 'outline'
 }
 
+interface PostIdea {
+  hook: string
+  angle: string
+  format: string
+}
+
 export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
   const [loading, setLoading] = useState<PostStatus | null>(null)
   const [ruleOpen, setRuleOpen] = useState(false)
+  const [ideaOpen, setIdeaOpen] = useState(false)
+  const [ideaLoading, setIdeaLoading] = useState(false)
+  const [ideaError, setIdeaError] = useState<string | null>(null)
+  const [ideas, setIdeas] = useState<PostIdea[] | null>(null)
 
   async function updateStatus(status: PostStatus) {
     if (loading) return
@@ -66,6 +88,39 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
       toast.error('Failed to update post')
     } finally {
       setLoading(null)
+    }
+  }
+
+  async function generateIdea() {
+    if (ideaLoading) return
+    if (ideas) {
+      setIdeaOpen((v) => !v)
+      return
+    }
+    setIdeaOpen(true)
+    setIdeaLoading(true)
+    setIdeaError(null)
+    try {
+      const res = await fetch(`/api/posts/${post.id}/content-idea`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Same surfacing convention as subreddit-suggester.tsx: map known
+        // status codes/error strings to something a user can act on rather
+        // than showing the raw code (e.g. "idea_failed") verbatim.
+        if (res.status === 402) {
+          setIdeaError(data.error || 'Not enough credits to generate a content idea.')
+        } else if (data.error === 'idea_failed') {
+          setIdeaError('The idea generator did not respond. Try again in a moment.')
+        } else {
+          setIdeaError(`Content idea failed (${res.status}). Try again in a moment.`)
+        }
+        return
+      }
+      setIdeas(data.postIdeas ?? [])
+    } catch {
+      setIdeaError('Content idea failed. Try again in a moment.')
+    } finally {
+      setIdeaLoading(false)
     }
   }
 
@@ -95,8 +150,8 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
             {post.relevance_score}
           </TooltipTrigger>
           <TooltipContent>
-            {relevanceLabel(post.relevance_score)} — {post.relevance_score}/100 relevance to your
-            campaign&apos;s keywords
+            {relevanceLabel(post.relevance_score)} — {post.relevance_score}/100, based on how many
+            times your campaign&apos;s keywords appear in this post
           </TooltipContent>
         </Tooltip>
       </div>
@@ -159,7 +214,7 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
           onClick={() => updateStatus('replied')}
         >
           <CheckCircle className="h-3 w-3" />
-          {loading === 'replied' ? '...' : 'Replied'}
+          {loading === 'replied' ? '...' : post.status === 'replied' ? 'Replied' : 'Mark replied'}
         </Button>
         <Button
           size="sm"
@@ -185,6 +240,27 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
           )}
           {loading === 'saved' ? '...' : post.status === 'saved' ? 'Saved' : 'Save'}
         </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
+                disabled={ideaLoading}
+                onClick={generateIdea}
+              />
+            }
+          >
+            <Lightbulb className="h-3 w-3" />
+            {ideaLoading ? '...' : 'Content idea'}
+          </TooltipTrigger>
+          <TooltipContent>
+            {ideas
+              ? 'Toggle the ideas already generated for this post'
+              : `Generates 3 post ideas from this post — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}`}
+          </TooltipContent>
+        </Tooltip>
         <a
           href={post.url}
           target="_blank"
@@ -196,6 +272,35 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
             Open
           </Button>
         </a>
+      </div>
+
+      <div className="slide-message" data-open={ideaOpen}>
+        <div>
+          <div className="rounded-md bg-brand-foreground px-3 py-2.5 space-y-2">
+            {ideaLoading && (
+              <p className="text-xs text-brand-text-muted">Generating ideas from this post…</p>
+            )}
+            {!ideaLoading && ideaError && (
+              <p className="text-xs text-brand-text-muted">{ideaError}</p>
+            )}
+            {!ideaLoading && !ideaError && ideas && ideas.length === 0 && (
+              <p className="text-xs text-brand-text-muted">
+                Couldn&apos;t find a usable angle in this post.
+              </p>
+            )}
+            {!ideaLoading && !ideaError && ideas && ideas.length > 0 && (
+              <ul className="space-y-2">
+                {ideas.map((idea, i) => (
+                  <li key={i} className="text-xs">
+                    <span className="font-medium text-brand-text">{idea.hook}</span>{' '}
+                    <span className="text-brand-text-muted">— {idea.angle}</span>{' '}
+                    <span className="text-brand-text-muted">({idea.format})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

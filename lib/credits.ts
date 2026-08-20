@@ -149,3 +149,41 @@ export async function deductCredits(
 
   return { ok: false, balance: current[0]?.credit_balance ?? 0 }
 }
+
+/**
+ * Reverses a deductCredits charge that turned out to buy nothing (the
+ * generation failed, or came back empty) — e.g. the per-post Content Idea
+ * button in app/api/posts/[id]/content-idea/route.ts, which must charge
+ * before it knows whether the model will find a usable angle. `refId` should
+ * be unique per refund attempt (the caller pairs it with the original charge)
+ * so a retried request can't double-refund.
+ */
+export async function refundCredits(
+  userId: string,
+  amount: number,
+  refId: string
+): Promise<DeductCreditsResult> {
+  const rows = (await sql`
+    WITH ins AS (
+      INSERT INTO credit_ledger (user_id, delta, reason, ref_id)
+      VALUES (${userId}, ${amount}, 'refund', ${refId})
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    ), credited AS (
+      UPDATE users
+      SET credit_balance = credit_balance + ${amount}
+      WHERE id = ${userId} AND EXISTS (SELECT 1 FROM ins)
+      RETURNING credit_balance
+    )
+    SELECT credit_balance FROM credited
+  `) as { credit_balance: number }[]
+
+  if (rows.length > 0) {
+    return { ok: true, balance: rows[0].credit_balance }
+  }
+
+  const current = (await sql`
+    SELECT credit_balance FROM users WHERE id = ${userId}
+  `) as { credit_balance: number }[]
+  return { ok: true, balance: current[0]?.credit_balance ?? 0 }
+}

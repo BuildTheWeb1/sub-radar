@@ -22,6 +22,11 @@ interface RedditResponse {
   }
 }
 
+// Reddit threads older than this are treated as dead — the OP has moved on and a
+// reply reads as necroposting. Enforced here, at scrape time, rather than as a
+// display filter, so stale posts never burn scrape credits or storage.
+const MAX_POST_AGE_DAYS = 21
+
 export function scoreRelevance(title: string, body: string, keywords: string[]): number {
   if (keywords.length === 0) return 0
 
@@ -121,6 +126,9 @@ export async function scrapeOnePair(
       if (seen.has(d.id)) continue
       seen.add(d.id)
       found++
+
+      const ageMs = Date.now() - d.created_utc * 1000
+      if (ageMs > MAX_POST_AGE_DAYS * 24 * 60 * 60 * 1000) continue
 
       const relevance_score = scoreRelevance(d.title, d.selftext, campaign.keywords)
       if (relevance_score < campaign.min_relevance) continue

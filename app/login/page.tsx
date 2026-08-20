@@ -31,7 +31,7 @@ export default function LoginPage() {
 
           {/* Tags */}
           <div className="flex flex-wrap gap-2">
-            {['Reddit monitoring', 'Lead generation', 'AI relevance scoring'].map((tag) => (
+            {['Reddit monitoring', 'Lead generation', 'AI content ideas'].map((tag) => (
               <span
                 key={tag}
                 className="text-xs px-3 py-1 rounded-full text-brand-surface-border-hover"

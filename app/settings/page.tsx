@@ -14,6 +14,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Radar, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Campaign } from '@/lib/types'
+import { CREDIT_PACKS } from '@/lib/credit-costs'
+
+// Mirrors FREQUENCY_HOURS in lib/workflows/scrape-cycle.ts — duplicated rather
+// than imported because that module pulls in workflow/server-only deps a
+// client component can't bundle.
+const FREQUENCY_HOURS: Record<string, number> = { '1h': 1, '2h': 2, '6h': 6, '12h': 12 }
+
+// Worst-case (highest) $/credit — the starter pack — is used deliberately: a
+// first-time buyer is most likely to be on this pack, so showing that rate is
+// the conservative, not-misleadingly-low estimate.
+const WORST_CASE_USD_PER_CREDIT = Math.max(...CREDIT_PACKS.map((p) => p.priceUsd / p.credits))
 
 export default function SettingsPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
@@ -120,16 +131,30 @@ export default function SettingsPage() {
             <SelectItem value="12h">Every 12 hours</SelectItem>
           </SelectContent>
         </Select>
+        {campaign && (
+          <p className="text-xs text-brand-text-muted tabular-nums">
+            {(() => {
+              const pairs = campaign.subreddits.length * campaign.keywords.length
+              const hours = FREQUENCY_HOURS[scrapeFrequency] ?? 2
+              const creditsPerDay = pairs * (24 / hours)
+              const usdPerDay = creditsPerDay * WORST_CASE_USD_PER_CREDIT
+              return pairs > 0
+                ? `≈ ${creditsPerDay.toLocaleString()} credits/day (≈ $${usdPerDay.toFixed(2)}/day at starter pricing) at this cadence, given your ${campaign.subreddits.length} subreddits × ${campaign.keywords.length} keywords.`
+                : 'Add subreddits and keywords on Radar to see the cost of this cadence.'
+            })()}
+          </p>
+        )}
       </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-brand-text-strong">Discard threshold</h2>
         <p className="text-sm text-brand-text-muted max-w-prose">
           Posts scoring below this are thrown away during the scan and never stored — this is
-          not a display filter, and raising it cannot be undone for posts already skipped. A
-          post only scores above zero when one of your keywords appears in it word for word,
-          so keep this at 0 unless your feed is genuinely too noisy. Use the relevance filter
-          on the feed to narrow what you look at.
+          not a display filter, and raising it cannot be undone for posts already skipped. This
+          score is a keyword match count, not an AI judgment of fit — a post only scores above
+          zero when one of your keywords appears in it word for word — so keep this at 0 unless
+          your feed is genuinely too noisy. Use the keyword match filter on the feed to narrow
+          what you look at.
         </p>
         <div className="space-y-2 max-w-sm">
           <div className="flex items-baseline justify-between">

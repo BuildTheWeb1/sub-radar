@@ -182,7 +182,7 @@ export function PostFeed({
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="relevance">Relevance</SelectItem>
+              <SelectItem value="relevance">Keyword match</SelectItem>
               <SelectItem value="upvotes">Upvotes</SelectItem>
               <SelectItem value="comments">Comments</SelectItem>
               <SelectItem value="recent">Recent</SelectItem>
@@ -193,7 +193,7 @@ export function PostFeed({
             onValueChange={(v) => setFilters((f) => ({ ...f, minRelevance: v ?? undefined }))}
           >
             <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue placeholder="Min relevance" />
+              <SelectValue placeholder="Min keyword match" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">All scores</SelectItem>
