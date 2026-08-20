@@ -19,6 +19,16 @@ const POLL_IDLE_MS = 60_000
 // later. Close enough for a transient confirmation; not a guarantee.
 const RESULT_HOLD_MS = 30_000
 
+// How long "Starting…" is allowed to cover for a trigger that hasn't shown up as a
+// running job yet. `start()` in the trigger route dispatches the workflow and
+// returns — it does NOT wait for the workflow's first step (markRunStartedStep,
+// which is what actually inserts the scrape_jobs row `running` is read from) to
+// execute, so there's a real gap between "the click was accepted" and "a poll can
+// see it's running" with no fixed bound on it. This caps how long the UI keeps
+// pretending on the user's behalf before giving up and going back to idle, rather
+// than leaving the button disabled forever if the dispatch silently never starts.
+const STARTING_GRACE_MS = 20_000
+
 /** Broadcast so the post feed can refetch itself when a scrape lands. */
 export const SCRAPE_FINISHED_EVENT = 'subradar:scrape-finished'
 
@@ -37,22 +47,87 @@ export function ScraperBar() {
   // dependency, which would tear down and restart the loop on every tick.
   const statusRef = useRef<ScrapeStatus | null>(null)
   statusRef.current = status
+  // Same reason: lets the loop poll fast while `starting` is true even before a
+  // poll has confirmed `running`, without re-subscribing the effect to `starting`.
+  const startingRef = useRef(false)
+  startingRef.current = starting
+  const startingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Snapshot of last_finished_at at the moment a scan is triggered, so the
+  // effect below can tell "a scan finished since I clicked" apart from "a scan
+  // that finished before I clicked is still sitting in status". Doesn't need
+  // its own effect to reset — it's only ever read while `starting` is true,
+  // and handleRun always rewrites it before setting `starting` true again.
+  const startingBaselineFinishedAtRef = useRef<string | null>(null)
+  // Guards every state update/side effect that happens after an `await` in
+  // fetchStatus — sequenced writes are fine (see the synchronous ref
+  // read-then-write below), but nothing should touch state once the component
+  // that owns it is gone.
+  const mountedRef = useRef(true)
+
+  function clearStartingTimeout() {
+    if (startingTimeoutRef.current) {
+      clearTimeout(startingTimeoutRef.current)
+      startingTimeoutRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearStartingTimeout()
+    }
+  }, [])
+
+  // The authoritative way `starting` turns off: a poll reports something that
+  // could only be true once the workflow has actually started — it's running,
+  // a *new* last_finished_at shows up (the whole cycle came and went between
+  // two polls), an error landed, or the campaign got paused. Checking only
+  // `running` would leave the bar stuck on "Starting scan…" for the rest of
+  // STARTING_GRACE_MS if a scan finished (or failed) faster than the next
+  // poll could catch it mid-flight — a real gap, not just a hypothetical one,
+  // since a cycle with few pairs can finish in a few seconds. See
+  // STARTING_GRACE_MS above for the fallback if none of this ever fires.
+  useEffect(() => {
+    if (!starting || !status) return
+    const finishedSinceClick =
+      status.last_finished_at != null &&
+      status.last_finished_at !== startingBaselineFinishedAtRef.current
+    if (status.running || finishedSinceClick || status.last_error || status.paused_reason) {
+      clearStartingTimeout()
+      setStarting(false)
+    }
+  }, [starting, status])
 
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/scrape-status')
       if (!res.ok) return
       const data: ScrapeStatus = await res.json()
+      if (!mountedRef.current) return
 
-      // A newly-closed job means fresh rows landed — tell the feed to reload.
-      if (
-        data.last_finished_at &&
-        lastFinishedRef.current &&
-        data.last_finished_at !== lastFinishedRef.current
-      ) {
-        window.dispatchEvent(new CustomEvent(SCRAPE_FINISHED_EVENT))
-      }
+      // Read-then-write with no `await` in between, so two fetchStatus calls
+      // racing each other (the poll loop restarting mid-flight right after
+      // handleRun's own trigger, or a slow response overlapping the next
+      // scheduled tick) can't both see the same stale `previous` value and
+      // both fire the finished side effects for what is actually one event.
+      const previous = lastFinishedRef.current
       lastFinishedRef.current = data.last_finished_at
+
+      // A newly-closed job means fresh rows landed — tell the feed to reload and
+      // let the user know even if they've since switched tabs or scrolled away
+      // from the bar (it already says so once they look back, but a scan can
+      // take minutes and a tab isn't always in view the whole time).
+      if (data.last_finished_at && previous && data.last_finished_at !== previous) {
+        window.dispatchEvent(new CustomEvent(SCRAPE_FINISHED_EVENT))
+        toast.success(
+          data.last_posts_found === 0
+            ? 'Scan finished — nothing new'
+            : `Scan finished — ${data.last_posts_found} new ${
+                data.last_posts_found === 1 ? 'post' : 'posts'
+              }`
+        )
+      }
 
       setStatus(data)
     } catch {
@@ -77,7 +152,8 @@ export function ScraperBar() {
       if (cancelled) return
       await fetchStatus()
       if (cancelled) return
-      timer = setTimeout(tick, statusRef.current?.running ? POLL_RUNNING_MS : POLL_IDLE_MS)
+      const fast = statusRef.current?.running || startingRef.current
+      timer = setTimeout(tick, fast ? POLL_RUNNING_MS : POLL_IDLE_MS)
     }
 
     tick()
@@ -92,7 +168,16 @@ export function ScraperBar() {
       toast.error('Still loading your campaign — try again in a moment')
       return
     }
+    // Set before the request even goes out — the click itself is the moment
+    // that needs to read as "acknowledged", not whatever poll eventually
+    // catches the job. Cleared by the effect above once a poll actually
+    // confirms `running`, or by the grace-period timeout below if none ever
+    // does — never optimistically here, since the trigger route's own POST
+    // resolving is not proof the workflow has started (see STARTING_GRACE_MS).
+    startingBaselineFinishedAtRef.current = statusRef.current?.last_finished_at ?? null
     setStarting(true)
+    clearStartingTimeout()
+    startingTimeoutRef.current = setTimeout(() => setStarting(false), STARTING_GRACE_MS)
     try {
       const res = await fetch('/api/scrape/trigger', {
         method: 'POST',
@@ -103,23 +188,29 @@ export function ScraperBar() {
 
       if (res.status === 429) {
         toast.error(data.error || 'A scan is already running.')
+        clearStartingTimeout()
+        setStarting(false)
         return
       }
       if (res.status === 402) {
         toast.error(data.error || 'Not enough credits to run this scan.')
+        clearStartingTimeout()
+        setStarting(false)
         return
       }
       if (!res.ok) {
         toast.error(data.error || 'Could not start the scan')
+        clearStartingTimeout()
+        setStarting(false)
         return
       }
-      // The trigger route inserts the scrape_jobs row before dispatching the
-      // background request, so the job is already visible — restart the loop at
-      // its fast cadence rather than guessing at a delay.
+      // Restart the poll loop at its fast cadence right away — tick() below
+      // already stays fast while `starting` is true, so this just cancels the
+      // idle timer that might otherwise still have most of a minute left on it.
       setPollNonce((n) => n + 1)
     } catch {
       toast.error('Could not start the scan')
-    } finally {
+      clearStartingTimeout()
       setStarting(false)
     }
   }
@@ -128,6 +219,13 @@ export function ScraperBar() {
   const pairsTotal = status?.pairs_total ?? 0
   const pairsDone = Math.min(status?.pairs_done ?? 0, pairsTotal)
   const fraction = pairsTotal > 0 ? pairsDone / pairsTotal : 0
+  // The click-to-confirmed-running gap, in UI terms — the dot, message, and
+  // button all read as "in progress" from the moment the button is pressed,
+  // not just from the moment a status poll agrees `running` is true. `starting`
+  // collapses back into `running` as soon as a poll confirms it (see the effect
+  // above), or after STARTING_GRACE_MS if none ever does — a bridge across the
+  // gap, not a second source of truth.
+  const displayRunning = running || starting
 
   const justFinished =
     !running &&
@@ -138,9 +236,13 @@ export function ScraperBar() {
     <div className="border-b border-brand-surface-border bg-brand-surface">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between gap-4 py-2.5 min-h-11">
-          <div className="min-w-0 flex items-center gap-2.5 text-sm">
+          {/* Sonner's own toasts already announce to a screen reader, but only for the
+              two moments that get a toast (finished, error) — a "Starting scan…"
+              acknowledgment on click otherwise reaches sighted users only. This is
+              the only announcement path for every other status change. */}
+          <div className="min-w-0 flex items-center gap-2.5 text-sm" role="status" aria-live="polite">
             <StatusDot
-              running={running}
+              running={displayRunning}
               stalled={status?.stalled ?? false}
               error={!!status?.last_error}
               paused={!!status?.paused_reason}
@@ -148,6 +250,7 @@ export function ScraperBar() {
             <Message
               status={status}
               running={running}
+              starting={starting}
               justFinished={justFinished}
               pairsDone={pairsDone}
               pairsTotal={pairsTotal}
@@ -167,8 +270,8 @@ export function ScraperBar() {
               onClick={handleRun}
               disabled={starting || running}
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${running ? 'animate-spin-slow' : ''}`} />
-              {running ? 'Scanning' : 'Run scan'}
+              <RefreshCw className={`h-3.5 w-3.5 ${displayRunning ? 'animate-spin-slow' : ''}`} />
+              {running ? 'Scanning' : starting ? 'Starting…' : 'Run scan'}
             </Button>
           </div>
         </div>
@@ -228,12 +331,14 @@ function StatusDot({
 function Message({
   status,
   running,
+  starting,
   justFinished,
   pairsDone,
   pairsTotal,
 }: {
   status: ScrapeStatus | null
   running: boolean
+  starting: boolean
   justFinished: boolean
   pairsDone: number
   pairsTotal: number
@@ -250,7 +355,13 @@ function Message({
   let kind: string
   let content: React.ReactNode
 
-  if (running) {
+  if (starting && !running) {
+    // Covers the round trip between the click and the confirming fetchStatus
+    // in handleRun — pairsTotal isn't known yet, so this can't just be the
+    // "running" message with a 0/0 tacked on.
+    kind = 'starting'
+    content = <span className="font-medium text-brand-text-strong">Starting scan…</span>
+  } else if (running) {
     // No pair-level narration ("r/X for 'Y'") — that's internals, not something a
     // user needs to watch happen. One calm line, same for every breakpoint.
     kind = 'running'
