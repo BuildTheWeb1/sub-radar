@@ -242,74 +242,81 @@ function Message({
     return <span className="text-brand-text-muted">Checking scanner…</span>
   }
 
+  // The pill's own `key` below is the message's *kind*, not its exact text —
+  // pairsDone ticking up every 2.5s while running is expected churn, not a new
+  // message, and re-fading on every tick would turn the crossfade into a
+  // distracting flicker. Only an actual change of kind (idle → running →
+  // finished, an error appearing) remounts the span and replays the fade.
+  let kind: string
+  let content: React.ReactNode
+
   if (running) {
     // No pair-level narration ("r/X for 'Y'") — that's internals, not something a
     // user needs to watch happen. One calm line, same for every breakpoint.
-    return (
-      <span className="truncate">
+    kind = 'running'
+    content = (
+      <>
         <span className="font-medium text-brand-text-strong">Scanning…</span>
         <span className="text-brand-text-muted tabular-nums"> {pairsDone}/{pairsTotal}</span>
-      </span>
+      </>
     )
-  }
-
-  if (status.paused_reason === 'insufficient_credits') {
-    return (
-      <span className="truncate text-brand-text">
-        Scanning paused — out of credits. Top up to resume.
-      </span>
+  } else if (status.paused_reason === 'insufficient_credits') {
+    kind = 'paused'
+    content = (
+      <span className="text-brand-text">Scanning paused — out of credits. Top up to resume.</span>
     )
-  }
-
-  if (status.stalled) {
-    return (
-      <span className="truncate text-brand-text">
+  } else if (status.stalled) {
+    kind = 'stalled'
+    content = (
+      <span className="text-brand-text">
         The last scan stopped before it finished. Run it again to pick up where it left off.
       </span>
     )
-  }
-
-  if (status.last_error) {
-    return (
-      <span className="truncate text-brand-text">
+  } else if (status.last_error) {
+    kind = 'error'
+    content = (
+      <span className="text-brand-text">
         Last scan failed: <span className="text-brand-text-muted">{status.last_error}</span>
       </span>
     )
-  }
-
-  if (justFinished) {
-    return (
-      <span className="truncate">
-        <span className="font-medium text-brand-text-strong">
-          {status.last_posts_found === 0
-            ? 'Scan finished, nothing new'
-            : `Scan finished · ${status.last_posts_found} new ${
-                status.last_posts_found === 1 ? 'post' : 'posts'
-              }`}
-        </span>
+  } else if (justFinished) {
+    kind = 'finished'
+    content = (
+      <span className="font-medium text-brand-text-strong">
+        {status.last_posts_found === 0
+          ? 'Scan finished, nothing new'
+          : `Scan finished · ${status.last_posts_found} new ${
+              status.last_posts_found === 1 ? 'post' : 'posts'
+            }`}
+      </span>
+    )
+  } else {
+    kind = 'idle'
+    const partial = pairsTotal > 0 && pairsDone > 0 && pairsDone < pairsTotal
+    content = (
+      <span className="text-brand-text-muted">
+        {status.last_scraped_at
+          ? `Last scan ${formatDistanceToNow(new Date(status.last_scraped_at), { addSuffix: true })}`
+          : 'No scan yet'}
+        {partial && (
+          <span className="tabular-nums">
+            {' '}
+            · paused at {pairsDone}/{pairsTotal}
+          </span>
+        )}
+        {status.next_scrape_at && (
+          <span className="hidden sm:inline">
+            {' '}
+            · next scan {formatDistanceToNow(new Date(status.next_scrape_at), { addSuffix: true })}
+          </span>
+        )}
       </span>
     )
   }
 
-  const partial = pairsTotal > 0 && pairsDone > 0 && pairsDone < pairsTotal
-
   return (
-    <span className="truncate text-brand-text-muted">
-      {status.last_scraped_at
-        ? `Last scan ${formatDistanceToNow(new Date(status.last_scraped_at), { addSuffix: true })}`
-        : 'No scan yet'}
-      {partial && (
-        <span className="tabular-nums">
-          {' '}
-          · paused at {pairsDone}/{pairsTotal}
-        </span>
-      )}
-      {status.next_scrape_at && (
-        <span className="hidden sm:inline">
-          {' '}
-          · next scan {formatDistanceToNow(new Date(status.next_scrape_at), { addSuffix: true })}
-        </span>
-      )}
+    <span key={kind} className="truncate animate-fade-in">
+      {content}
     </span>
   )
 }

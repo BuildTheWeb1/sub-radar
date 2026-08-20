@@ -8,29 +8,42 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* Left brand panel */}
       <div className="relative md:w-[55%] bg-gradient-to-br from-brand-text-strong via-brand-text to-brand-gradient-to flex flex-col justify-center px-10 py-12 overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-white opacity-[0.04]" />
-        <div className="absolute -bottom-32 -right-10 w-[28rem] h-[28rem] rounded-full bg-white opacity-[0.03]" />
+        {/* Decorative circles — a slow ambient drift keeps the panel from feeling
+            static without ever competing with the foreground copy for attention. */}
+        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-white opacity-[0.04] animate-drift" />
+        <div
+          className="absolute -bottom-32 -right-10 w-[28rem] h-[28rem] rounded-full bg-white opacity-[0.03] animate-drift"
+          style={{ animationDelay: '-9s', animationDirection: 'alternate-reverse' }}
+        />
 
         <div className="relative z-10 max-w-md">
           {/* Logo */}
-          <div className="flex items-center gap-2.5 mb-8">
+          <div className="flex items-center gap-2.5 mb-8 animate-fade-up-staggered" style={{ '--stagger': 0 } as React.CSSProperties}>
             <BrandMark size="md" />
             <span className="font-bold text-brand-surface-border-hover tracking-tight text-lg">SubRadar</span>
           </div>
 
           {/* Headline */}
-          <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4">
+          <h1
+            className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4 animate-fade-up-staggered"
+            style={{ '--stagger': 1 } as React.CSSProperties}
+          >
             Find customers before your competitors do.
           </h1>
 
           {/* Body */}
-          <p className="text-brand-tagline text-sm leading-relaxed mb-8">
+          <p
+            className="text-brand-tagline text-sm leading-relaxed mb-8 animate-fade-up-staggered"
+            style={{ '--stagger': 2 } as React.CSSProperties}
+          >
             SubRadar monitors Reddit 24/7 and surfaces conversations where your product is exactly what people are asking for.
           </p>
 
           {/* Tags */}
-          <div className="flex flex-wrap gap-2">
+          <div
+            className="flex flex-wrap gap-2 animate-fade-up-staggered"
+            style={{ '--stagger': 3 } as React.CSSProperties}
+          >
             {['Reddit monitoring', 'Lead generation', 'AI content ideas'].map((tag) => (
               <span
                 key={tag}
@@ -46,7 +59,10 @@ export default function LoginPage() {
 
       {/* Right sign-in panel */}
       <div className="md:w-[45%] bg-brand-surface flex flex-col items-center justify-center px-8 py-12">
-        <div className="w-full max-w-sm space-y-6">
+        <div
+          className="w-full max-w-sm space-y-6 animate-fade-up-staggered"
+          style={{ '--stagger': 2 } as React.CSSProperties}
+        >
           <div className="space-y-1.5">
             <h2 className="text-2xl font-bold text-brand-text-strong">Welcome back</h2>
             <p className="text-sm text-brand-text-muted">Sign in to your SubRadar account to continue.</p>
@@ -54,7 +70,7 @@ export default function LoginPage() {
 
           <button
             onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-            className="w-full flex items-center justify-center gap-3 border border-brand-surface-border bg-white rounded-lg px-4 py-2.5 text-sm font-medium text-brand-text hover:bg-brand-surface transition-colors"
+            className="w-full flex items-center justify-center gap-3 border border-brand-surface-border bg-white rounded-lg px-4 py-2.5 text-sm font-medium text-brand-text transition-[background-color,box-shadow,transform] hover:bg-brand-surface hover:shadow-sm active:translate-y-px"
           >
             {/* Google logo inline SVG */}
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">

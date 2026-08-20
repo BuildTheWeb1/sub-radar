@@ -297,8 +297,8 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
                 />
               }
             >
-              <Lightbulb className="h-3 w-3" />
-              {ideaLoading ? '...' : 'Reply idea'}
+              <Lightbulb className={`h-3 w-3 ${ideaLoading ? 'animate-breathe' : ''}`} />
+              {ideaLoading ? 'Generating…' : 'Reply idea'}
             </TooltipTrigger>
             <TooltipContent>
               {`Drafts 3 reply comments for this post, respecting r/${post.subreddit}'s self-promo rules — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}, once until your next scan`}
