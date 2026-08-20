@@ -58,10 +58,9 @@ function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outl
   return 'outline'
 }
 
-interface PostIdea {
-  hook: string
+interface ReplyIdea {
+  comment: string
   angle: string
-  format: string
 }
 
 export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
@@ -70,7 +69,7 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [ideaLoading, setIdeaLoading] = useState(false)
   const [ideaError, setIdeaError] = useState<string | null>(null)
-  const [ideas, setIdeas] = useState<PostIdea[] | null>(null)
+  const [replies, setReplies] = useState<ReplyIdea[] | null>(null)
 
   async function updateStatus(status: PostStatus) {
     if (loading) return
@@ -93,7 +92,7 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
 
   async function generateIdea() {
     if (ideaLoading) return
-    if (ideas) {
+    if (replies) {
       setIdeaOpen((v) => !v)
       return
     }
@@ -101,24 +100,24 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
     setIdeaLoading(true)
     setIdeaError(null)
     try {
-      const res = await fetch(`/api/posts/${post.id}/content-idea`, { method: 'POST' })
+      const res = await fetch(`/api/posts/${post.id}/reply-idea`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         // Same surfacing convention as subreddit-suggester.tsx: map known
         // status codes/error strings to something a user can act on rather
         // than showing the raw code (e.g. "idea_failed") verbatim.
         if (res.status === 402) {
-          setIdeaError(data.error || 'Not enough credits to generate a content idea.')
+          setIdeaError(data.error || 'Not enough credits to generate a reply idea.')
         } else if (data.error === 'idea_failed') {
           setIdeaError('The idea generator did not respond. Try again in a moment.')
         } else {
-          setIdeaError(`Content idea failed (${res.status}). Try again in a moment.`)
+          setIdeaError(`Reply idea failed (${res.status}). Try again in a moment.`)
         }
         return
       }
-      setIdeas(data.postIdeas ?? [])
+      setReplies(data.replies ?? [])
     } catch {
-      setIdeaError('Content idea failed. Try again in a moment.')
+      setIdeaError('Reply idea failed. Try again in a moment.')
     } finally {
       setIdeaLoading(false)
     }
@@ -171,7 +170,7 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
           </button>
         )}
         <span>·</span>
-        <span>{pluralize(post.upvotes, 'point')}</span>
+        <span>{pluralize(post.upvotes, 'upvote')}</span>
         <span>·</span>
         <span>{pluralize(post.num_comments, 'comment')}</span>
         <span>·</span>
@@ -253,12 +252,12 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
             }
           >
             <Lightbulb className="h-3 w-3" />
-            {ideaLoading ? '...' : 'Content idea'}
+            {ideaLoading ? '...' : 'Reply idea'}
           </TooltipTrigger>
           <TooltipContent>
-            {ideas
-              ? 'Toggle the ideas already generated for this post'
-              : `Generates 3 post ideas from this post — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}`}
+            {replies
+              ? 'Toggle the reply drafts already generated for this post'
+              : `Drafts 3 reply comments for this post, respecting r/${post.subreddit}'s self-promo rules — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}`}
           </TooltipContent>
         </Tooltip>
         <a
@@ -283,18 +282,17 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
             {!ideaLoading && ideaError && (
               <p className="text-xs text-brand-text-muted">{ideaError}</p>
             )}
-            {!ideaLoading && !ideaError && ideas && ideas.length === 0 && (
+            {!ideaLoading && !ideaError && replies && replies.length === 0 && (
               <p className="text-xs text-brand-text-muted">
                 Couldn&apos;t find a usable angle in this post.
               </p>
             )}
-            {!ideaLoading && !ideaError && ideas && ideas.length > 0 && (
-              <ul className="space-y-2">
-                {ideas.map((idea, i) => (
-                  <li key={i} className="text-xs">
-                    <span className="font-medium text-brand-text">{idea.hook}</span>{' '}
-                    <span className="text-brand-text-muted">— {idea.angle}</span>{' '}
-                    <span className="text-brand-text-muted">({idea.format})</span>
+            {!ideaLoading && !ideaError && replies && replies.length > 0 && (
+              <ul className="space-y-3">
+                {replies.map((reply, i) => (
+                  <li key={i} className="text-xs space-y-0.5">
+                    <p className="text-brand-text">{reply.comment}</p>
+                    <p className="text-brand-text-muted italic">{reply.angle}</p>
                   </li>
                 ))}
               </ul>

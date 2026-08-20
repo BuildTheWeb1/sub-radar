@@ -68,9 +68,17 @@ export async function GET(req: NextRequest) {
     // so a single parameterized query covers every combination safely.
     // orderByClause is picked from a fixed, hardcoded whitelist map above (never
     // derived from raw user input), so sql.unsafe() here is safe.
+    //
+    // Posts older than 21 days are dropped from the "new" queue, matching the
+    // same cutoff scrapeOnePair (lib/scraper.ts) applies before inserting a
+    // post — a thread this old is dead, the OP has moved on, replying reads as
+    // necroposting. `OR status != 'new'` exempts posts the user has already
+    // acted on (Replied, Saved, even Ignored): those are deliberate history,
+    // not a lead queue, and must not vanish just because time passed.
     const dataQuery = sql`
       SELECT * FROM posts
       WHERE user_id = ${userId}
+        AND (posted_at >= now() - interval '21 days' OR status != 'new')
         AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
         AND (${subredditsFilter}::text[] IS NULL OR subreddit = ANY(${subredditsFilter}))
         AND (${minRelevanceFilter}::int IS NULL OR relevance_score >= ${minRelevanceFilter})
@@ -83,6 +91,7 @@ export async function GET(req: NextRequest) {
     const countQuery = sql`
       SELECT count(*)::int AS count FROM posts
       WHERE user_id = ${userId}
+        AND (posted_at >= now() - interval '21 days' OR status != 'new')
         AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
         AND (${subredditsFilter}::text[] IS NULL OR subreddit = ANY(${subredditsFilter}))
         AND (${minRelevanceFilter}::int IS NULL OR relevance_score >= ${minRelevanceFilter})

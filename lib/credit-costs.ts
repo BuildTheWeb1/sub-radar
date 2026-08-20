@@ -5,8 +5,9 @@
 // client components that display them beforehand can import the same values.
 export const SUGGEST_COST = 1
 export const CONTENT_IDEAS_COST = 3
-// Single-post idea generation is scoped to one post's context, not a 20-post
-// batch, so it costs less than the bulk Content Ideas run above.
+// Per-post reply-idea generation (the "Reply idea" button on a lead card) is
+// scoped to one post's context, not a 20-post batch, so it costs less than
+// the bulk Content Ideas run above.
 export const POST_CONTENT_IDEA_COST = 1
 
 export interface CreditPack {

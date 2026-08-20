@@ -153,7 +153,7 @@ export async function deductCredits(
 /**
  * Reverses a deductCredits charge that turned out to buy nothing (the
  * generation failed, or came back empty) — e.g. the per-post Content Idea
- * button in app/api/posts/[id]/content-idea/route.ts, which must charge
+ * button in app/api/posts/[id]/reply-idea/route.ts, which must charge
  * before it knows whether the model will find a usable angle. `refId` should
  * be unique per refund attempt (the caller pairs it with the original charge)
  * so a retried request can't double-refund.

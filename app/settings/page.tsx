@@ -15,6 +15,7 @@ import { Radar, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Campaign } from '@/lib/types'
 import { CREDIT_PACKS } from '@/lib/credit-costs'
+import { pluralize } from '@/lib/utils'
 
 // Mirrors FREQUENCY_HOURS in lib/workflows/scrape-cycle.ts — duplicated rather
 // than imported because that module pulls in workflow/server-only deps a
@@ -149,12 +150,12 @@ export default function SettingsPage() {
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-brand-text-strong">Discard threshold</h2>
         <p className="text-sm text-brand-text-muted max-w-prose">
-          Posts scoring below this are thrown away during the scan and never stored — this is
-          not a display filter, and raising it cannot be undone for posts already skipped. This
-          score is a keyword match count, not an AI judgment of fit — a post only scores above
-          zero when one of your keywords appears in it word for word — so keep this at 0 unless
-          your feed is genuinely too noisy. Use the keyword match filter on the feed to narrow
-          what you look at.
+          Every time one of your keywords appears in a post, it scores 20 points, up to 100. Raise
+          this slider to require more mentions before a post is kept — anything scoring below it
+          is thrown away during the scan and never stored. That&apos;s permanent: this isn&apos;t a
+          display filter, so raising it can&apos;t bring back posts already skipped. Keep this at 0
+          unless your feed is genuinely too noisy — a filter you can undo (Min keyword match, on
+          the feed itself) already narrows what you look at without losing anything.
         </p>
         <div className="space-y-2 max-w-sm">
           <div className="flex items-baseline justify-between">
@@ -179,6 +180,11 @@ export default function SettingsPage() {
             <span>0 — keep everything</span>
             <span>100</span>
           </div>
+          <p className="text-xs font-medium text-brand-accent">
+            {minRelevance === 0
+              ? 'Nothing is discarded — every scanned post is stored.'
+              : `A post needs at least ${pluralize(Math.ceil(minRelevance / 20), 'keyword mention')} to be kept.`}
+          </p>
         </div>
       </section>
 
