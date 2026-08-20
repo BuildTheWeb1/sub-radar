@@ -90,12 +90,18 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
     }
   }
 
+  // A post gets exactly one reply-idea generation per page view: `replies` is
+  // set to a non-empty array only on a 2xx response that actually returned
+  // something, at which point the button below disables and a chevron takes
+  // over for re-opening the (already-paid-for) result. A failed attempt
+  // (network error, 402, 500) OR a 2xx with zero usable replies leaves
+  // `replies` null on purpose — the backend refunds the credit for both, so
+  // the button must stay enabled and let the user retry rather than locking
+  // on a request that produced nothing.
+  const generated = replies !== null && replies.length > 0
+
   async function generateIdea() {
-    if (ideaLoading) return
-    if (replies) {
-      setIdeaOpen((v) => !v)
-      return
-    }
+    if (ideaLoading || generated) return
     setIdeaOpen(true)
     setIdeaLoading(true)
     setIdeaError(null)
@@ -115,7 +121,14 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
         }
         return
       }
-      setReplies(data.replies ?? [])
+      const fresh: ReplyIdea[] = data.replies ?? []
+      if (fresh.length === 0) {
+        // Refunded server-side (see reply-idea/route.ts) — don't lock the
+        // button on a generation that found nothing to work with.
+        setIdeaError("Couldn't find a usable angle in this post. Try again in a moment.")
+        return
+      }
+      setReplies(fresh)
     } catch {
       setIdeaError('Reply idea failed. Try again in a moment.')
     } finally {
@@ -239,27 +252,61 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
           )}
           {loading === 'saved' ? '...' : post.status === 'saved' ? 'Saved' : 'Save'}
         </Button>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
-                disabled={ideaLoading}
-                onClick={generateIdea}
-              />
-            }
+        {generated ? (
+          // A native `disabled` button never fires hover/focus, so a tooltip
+          // on it is unreachable — the explanation lives on the chevron
+          // instead, which stays interactive.
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted disabled:opacity-60"
+            disabled
           >
             <Lightbulb className="h-3 w-3" />
-            {ideaLoading ? '...' : 'Reply idea'}
-          </TooltipTrigger>
-          <TooltipContent>
-            {replies
-              ? 'Toggle the reply drafts already generated for this post'
-              : `Drafts 3 reply comments for this post, respecting r/${post.subreddit}'s self-promo rules — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}`}
-          </TooltipContent>
-        </Tooltip>
+            Reply idea
+          </Button>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1 border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
+                  disabled={ideaLoading}
+                  onClick={generateIdea}
+                />
+              }
+            >
+              <Lightbulb className="h-3 w-3" />
+              {ideaLoading ? '...' : 'Reply idea'}
+            </TooltipTrigger>
+            <TooltipContent>
+              {`Drafts 3 reply comments for this post, respecting r/${post.subreddit}'s self-promo rules — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}, once while this page stays open`}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {generated && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={() => setIdeaOpen((v) => !v)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-surface-border text-brand-text-muted hover:bg-brand-foreground"
+                  aria-expanded={ideaOpen}
+                  aria-label="Toggle reply idea details"
+                />
+              }
+            >
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${ideaOpen ? 'rotate-180' : ''}`}
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              {ideaOpen ? 'Hide the generated reply drafts' : 'Show the generated reply drafts'}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <a
           href={post.url}
           target="_blank"
@@ -282,12 +329,7 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
             {!ideaLoading && ideaError && (
               <p className="text-xs text-brand-text-muted">{ideaError}</p>
             )}
-            {!ideaLoading && !ideaError && replies && replies.length === 0 && (
-              <p className="text-xs text-brand-text-muted">
-                Couldn&apos;t find a usable angle in this post.
-              </p>
-            )}
-            {!ideaLoading && !ideaError && replies && replies.length > 0 && (
+            {!ideaLoading && !ideaError && replies && (
               <ul className="space-y-3">
                 {replies.map((reply, i) => (
                   <li key={i} className="text-xs space-y-0.5">
