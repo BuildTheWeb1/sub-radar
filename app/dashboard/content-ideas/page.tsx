@@ -7,6 +7,7 @@ import { Lightbulb, Sparkles, RefreshCw, Inbox } from 'lucide-react'
 import { BrandMark } from '@/components/brand-mark'
 import { CONTENT_IDEAS_COST } from '@/lib/credit-costs'
 import { pluralize } from '@/lib/utils'
+import { insufficientCreditsCopy, showInsufficientCreditsToast } from '@/lib/insufficient-credits-toast'
 
 interface PainPoint {
   theme: string
@@ -38,11 +39,18 @@ export default function ContentIdeasPage() {
       const res = await fetch('/api/content-ideas')
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setErrorMessage(
-          res.status === 402
-            ? data.error || 'Not enough credits to generate content ideas.'
-            : null
-        )
+        if (res.status === 402 && typeof data.need === 'number' && typeof data.have === 'number') {
+          // Same numbers, same wording, in both places — the toast and this
+          // banner used to source their text from different fields (a
+          // computed shortfall vs. the API's raw "need N" string) and could
+          // quote two different "need" figures for one failure.
+          showInsufficientCreditsToast(data.need, data.have)
+          setErrorMessage(insufficientCreditsCopy(data.need, data.have).description)
+        } else {
+          setErrorMessage(
+            res.status === 402 ? data.error || 'Not enough credits to generate content ideas.' : null
+          )
+        }
         setStatus('error')
         return
       }

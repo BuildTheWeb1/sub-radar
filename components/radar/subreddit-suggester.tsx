@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import type { SubredditCheck } from '@/lib/types'
 import { SUGGEST_COST } from '@/lib/credit-costs'
 import { pluralize } from '@/lib/utils'
+import { showInsufficientCreditsToast } from '@/lib/insufficient-credits-toast'
 import { formatMembers } from './format'
 
 export interface SubredditSuggestion {
@@ -92,7 +93,12 @@ export function SubredditSuggester({
         // the user nothing to act on and hides whether the problem is their
         // input, their session, or the server.
         if (res.status === 401) throw new Error('Your session expired. Reload the page and sign in again.')
-        if (res.status === 402) throw new Error(data.error || 'Not enough credits to generate suggestions.')
+        if (res.status === 402) {
+          if (typeof data.need === 'number' && typeof data.have === 'number') {
+            showInsufficientCreditsToast(data.need, data.have)
+          }
+          throw new Error(data.error || 'Not enough credits to generate suggestions.')
+        }
         if (res.status === 400 && data.error) throw new Error(data.error)
         throw new Error(
           data.error === 'suggestion_failed'

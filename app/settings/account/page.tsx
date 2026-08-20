@@ -133,7 +133,7 @@ export default function AccountPage() {
           </p>
         </section>
 
-        <section className="space-y-1.5">
+        <section id="buy-credits" className="space-y-1.5 scroll-mt-6">
           <h2 className="text-sm font-medium text-brand-text">Credits</h2>
           {balanceError ? (
             <p className="text-sm text-brand-text-muted">Could not load your balance.</p>

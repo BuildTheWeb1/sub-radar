@@ -73,7 +73,11 @@ export async function POST(req: NextRequest) {
     const balance = balanceRows[0]?.credit_balance ?? 0
     if (balance < cost) {
       return NextResponse.json(
-        { error: `Not enough credits for this scan (need ${cost}, have ${balance}).` },
+        {
+          error: `Not enough credits for this scan (need ${cost}, have ${balance}).`,
+          need: cost,
+          have: balance,
+        },
         { status: 402 }
       )
     }

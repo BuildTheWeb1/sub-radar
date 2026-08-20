@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button'
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import type { ScrapeStatus } from '@/lib/types'
+import { showInsufficientCreditsToast } from '@/lib/insufficient-credits-toast'
 
 // Poll hard while a scrape is genuinely open, and back off to a heartbeat when it
 // is not. A scrape pair takes ~1.5s minimum (INTER_REQUEST_DELAY_MS), so polling
@@ -193,7 +195,11 @@ export function ScraperBar() {
         return
       }
       if (res.status === 402) {
-        toast.error(data.error || 'Not enough credits to run this scan.')
+        if (typeof data.need === 'number' && typeof data.have === 'number') {
+          showInsufficientCreditsToast(data.need, data.have)
+        } else {
+          toast.error(data.error || 'Not enough credits to run this scan.')
+        }
         clearStartingTimeout()
         setStarting(false)
         return
@@ -262,6 +268,18 @@ export function ScraperBar() {
               <span className="hidden sm:inline tabular-nums text-xs text-brand-text-muted">
                 {pairsDone} of {pairsTotal}
               </span>
+            )}
+            {/* Lives in the shrink-0 cluster, not inside Message's `truncate` span
+                (which clips it on narrow viewports) or its `key={kind}` remount (which
+                would drop keyboard focus and re-announce the aria-live region on every
+                unrelated status poll). Only unmounts when paused_reason itself changes. */}
+            {status?.paused_reason === 'insufficient_credits' && (
+              <Link
+                href="/settings/account#buy-credits"
+                className="text-xs font-medium text-brand-accent underline underline-offset-2 hover:text-brand-accent-strong"
+              >
+                Buy credits
+              </Link>
             )}
             <Button
               size="sm"
@@ -372,9 +390,12 @@ function Message({
       </>
     )
   } else if (status.paused_reason === 'insufficient_credits') {
+    // The "Buy credits" CTA itself lives in the button cluster, not here — see
+    // the comment beside it in ScraperBar. This span still carries `truncate`,
+    // so an interactive control (and its focus) can't be clipped away.
     kind = 'paused'
     content = (
-      <span className="text-brand-text">Scanning paused — out of credits. Top up to resume.</span>
+      <span className="text-brand-text">Scanning paused — out of credits. Buy credits to resume.</span>
     )
   } else if (status.stalled) {
     kind = 'stalled'

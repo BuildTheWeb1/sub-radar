@@ -27,7 +27,11 @@ export async function GET() {
   const spend = await deductCredits(userId, CONTENT_IDEAS_COST, 'content_ideas', campaign.id)
   if (!spend.ok) {
     return NextResponse.json(
-      { error: `Not enough credits (need ${CONTENT_IDEAS_COST}, have ${spend.balance}).` },
+      {
+        error: `Not enough credits (need ${CONTENT_IDEAS_COST}, have ${spend.balance}).`,
+        need: CONTENT_IDEAS_COST,
+        have: spend.balance,
+      },
       { status: 402 }
     )
   }

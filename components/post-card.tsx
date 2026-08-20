@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { pluralize } from '@/lib/utils'
 import { POST_CONTENT_IDEA_COST } from '@/lib/credit-costs'
+import { showInsufficientCreditsToast } from '@/lib/insufficient-credits-toast'
 
 interface PostCardProps {
   post: Post
@@ -133,6 +134,9 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
         // than showing the raw code (e.g. "idea_failed") verbatim.
         if (res.status === 402) {
           setIdeaError(data.error || 'Not enough credits to generate a reply idea.')
+          if (typeof data.need === 'number' && typeof data.have === 'number') {
+            showInsufficientCreditsToast(data.need, data.have)
+          }
         } else if (data.error === 'idea_failed') {
           setIdeaError('The idea generator did not respond. Try again in a moment.')
         } else {

@@ -8,6 +8,7 @@ import { ChevronDown } from 'lucide-react'
 import type { Campaign, SubredditGuideline } from '@/lib/types'
 import type { RadarPayload } from '@/app/api/radar/route'
 import { pluralize } from '@/lib/utils'
+import { showInsufficientCreditsToast } from '@/lib/insufficient-credits-toast'
 import { SubredditSuggester } from '@/components/radar/subreddit-suggester'
 import { SubredditAdder } from '@/components/radar/subreddit-adder'
 import { TargetList } from '@/components/radar/target-list'
@@ -134,7 +135,16 @@ export default function RadarPage() {
         })
         const scanData = await scanRes.json().catch(() => ({}))
         if (!scanRes.ok) {
-          toast.error(scanData.error || 'Saved, but the scan could not start')
+          if (scanRes.status === 402 && typeof scanData.need === 'number' && typeof scanData.have === 'number') {
+            // Custom title, not the generic "Not enough credits" — this scan
+            // was implicit (a side effect of saving), so the user needs to
+            // know it didn't start at all, not just that credits are short.
+            showInsufficientCreditsToast(scanData.need, scanData.have, {
+              title: 'Saved, but the scan could not start',
+            })
+          } else {
+            toast.error(scanData.error || 'Saved, but the scan could not start')
+          }
         }
       }
 

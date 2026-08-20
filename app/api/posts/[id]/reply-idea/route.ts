@@ -61,7 +61,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const spend = await deductCredits(userId, POST_CONTENT_IDEA_COST, 'post_reply_idea', id)
   if (!spend.ok) {
     return NextResponse.json(
-      { error: `Not enough credits (need ${POST_CONTENT_IDEA_COST}, have ${spend.balance}).` },
+      {
+        error: `Not enough credits (need ${POST_CONTENT_IDEA_COST}, have ${spend.balance}).`,
+        need: POST_CONTENT_IDEA_COST,
+        have: spend.balance,
+      },
       { status: 402 }
     )
   }
