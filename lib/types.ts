@@ -1,5 +1,11 @@
 export type PostStatus = 'new' | 'replied' | 'ignored' | 'saved'
 
+/** One drafted Reddit reply for a post — see generateReplyIdeas in lib/content-ideas.ts. */
+export interface ReplyIdea {
+  comment: string
+  angle: string
+}
+
 export interface Post {
   id: string
   user_id: string
@@ -16,6 +22,11 @@ export interface Post {
   posted_at: string
   scraped_at: string
   campaign_id: string | null
+  /** Cached result of the per-post "Reply idea" button — null until generated,
+   * cleared back to null at the start of every new scan cycle (see
+   * clearReplyIdeasStep in lib/workflows/scrape-cycle.ts) so a stale draft
+   * doesn't linger under a post from an earlier batch of leads. */
+  reply_ideas: ReplyIdea[] | null
 }
 
 export interface Campaign {

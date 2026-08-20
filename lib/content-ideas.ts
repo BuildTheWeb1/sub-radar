@@ -1,7 +1,7 @@
 import 'server-only'
 import Anthropic from '@anthropic-ai/sdk'
 import { sql } from './db'
-import type { Campaign, SubredditGuideline } from './types'
+import type { Campaign, SubredditGuideline, ReplyIdea } from './types'
 
 export interface PainPoint {
   theme: string
@@ -216,11 +216,6 @@ export async function generateContentIdeas(
   const postIdeas = normalizePostIdeas((parsed as Record<string, unknown>).postIdeas)
 
   return { painPoints, postIdeas }
-}
-
-export interface ReplyIdea {
-  comment: string
-  angle: string
 }
 
 function normalizeReplyIdeas(input: unknown): ReplyIdea[] {

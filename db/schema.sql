@@ -204,3 +204,14 @@ create table if not exists deleted_accounts (
   id text primary key,
   deleted_at timestamptz not null default now()
 );
+
+-- Reply-idea generations (the per-post "Reply idea" button, post-card.tsx) are
+-- cached on the post row rather than regenerated on every page view — "session"
+-- here means "the current scan cycle's set of leads", not the browser tab: a
+-- reply drafted for a post should survive a refresh, but reset once a new scan
+-- brings in a new batch of posts, so stale drafts don't linger under leads the
+-- user has already moved past. reply_ideas is NULL until first generated; the
+-- clear-on-new-scan side is a full-table UPDATE per campaign in
+-- clearReplyIdeasStep (lib/workflows/scrape-cycle.ts), run at the start of
+-- every cycle — chain and ad-hoc alike, since both call markRunStartedStep.
+alter table posts add column if not exists reply_ideas jsonb;

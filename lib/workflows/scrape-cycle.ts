@@ -99,6 +99,22 @@ async function markRunStartedStep(campaign: Campaign, chainRunId: string | null)
   return rows[0].id
 }
 
+/**
+ * Resets every post's cached reply_ideas (see the per-post "Reply idea"
+ * button, post-card.tsx and app/api/posts/[id]/reply-idea/route.ts) once a
+ * scan cycle has actually brought in new posts — chain and ad-hoc alike.
+ * Called only after the scrape loop and only when totalInserted > 0 (see
+ * scrapeCycleWorkflow below), so a no-op re-scan leaves existing drafts
+ * alone. "Session" for that feature means this campaign's current batch of
+ * leads: a drafted reply should survive a page refresh, but a fresh scan
+ * means a fresh batch, so stale drafts shouldn't linger attached to posts
+ * the user has already moved past.
+ */
+async function clearReplyIdeasStep(campaignId: string): Promise<void> {
+  'use step'
+  await sql`UPDATE posts SET reply_ideas = NULL WHERE campaign_id = ${campaignId} AND reply_ideas IS NOT NULL`
+}
+
 async function scrapePairStep(
   campaign: Campaign,
   subreddit: string,
@@ -252,6 +268,17 @@ export async function scrapeCycleWorkflow(campaignId: string, chain: boolean) {
       const result = await scrapePairStep(campaign, subreddit, keyword, jobId, index, pairs.length)
       totalInserted += result.inserted
       await sleep('1.5s')
+    }
+
+    // Only after the loop, and only when this cycle actually brought in new
+    // posts — "when a new scan triggers and user gets new posts" (the user's
+    // own framing). Running this before the loop would also nuke every draft
+    // on a no-op manual re-scan, and would widen the window where a reply the
+    // user just generated and paid for gets wiped by a clear already in
+    // flight (the loop takes several seconds, so the LLM call has almost
+    // certainly finished and persisted by the time this fires).
+    if (totalInserted > 0) {
+      await clearReplyIdeasStep(campaignId)
     }
 
     const nextRunAt = await markRunFinishedStep(campaign, jobId, totalInserted, chain)

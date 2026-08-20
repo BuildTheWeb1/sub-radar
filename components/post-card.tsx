@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BanRiskBadge } from '@/components/ban-risk-badge'
-import { Post, PostStatus, SubredditGuideline } from '@/lib/types'
+import { Post, PostStatus, SubredditGuideline, ReplyIdea } from '@/lib/types'
 import {
   ExternalLink,
   CheckCircle,
@@ -58,18 +58,37 @@ function statusBadgeVariant(status: PostStatus): 'default' | 'secondary' | 'outl
   return 'outline'
 }
 
-interface ReplyIdea {
-  comment: string
-  angle: string
-}
-
 export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
   const [loading, setLoading] = useState<PostStatus | null>(null)
   const [ruleOpen, setRuleOpen] = useState(false)
   const [ideaOpen, setIdeaOpen] = useState(false)
   const [ideaLoading, setIdeaLoading] = useState(false)
   const [ideaError, setIdeaError] = useState<string | null>(null)
-  const [replies, setReplies] = useState<ReplyIdea[] | null>(null)
+  // Seeded from the post row (persisted server-side by /api/posts/[id]/reply-idea)
+  // rather than always starting null, so a previously generated reply survives a
+  // page refresh — it's only cleared when a new scan cycle resets reply_ideas
+  // to NULL for every post in the campaign (see clearReplyIdeasStep).
+  const [replies, setReplies] = useState<ReplyIdea[] | null>(post.reply_ideas)
+  // `post-feed.tsx` keeps this card mounted across a re-fetch (same key =
+  // post.id), so a plain `useState(post.reply_ideas)` only reads the prop
+  // once at mount and never again — a tab left open through a scan cycle
+  // would keep showing a locked button over a draft that's already been
+  // cleared server-side. This is React's documented "adjusting state during
+  // render" pattern: resync `replies` whenever the incoming prop identity
+  // actually changes (a fresh /api/posts fetch always returns new array
+  // instances), rather than only at mount. Safe against clobbering a
+  // just-generated draft because generateIdea()'s own persist UPDATE is
+  // awaited server-side before its response — and thus this component's own
+  // setReplies(fresh) call below — ever fires.
+  const [seenReplyIdeas, setSeenReplyIdeas] = useState(post.reply_ideas)
+  if (post.reply_ideas !== seenReplyIdeas) {
+    setSeenReplyIdeas(post.reply_ideas)
+    setReplies(post.reply_ideas)
+    if (!post.reply_ideas) {
+      setIdeaOpen(false)
+      setIdeaError(null)
+    }
+  }
 
   async function updateStatus(status: PostStatus) {
     if (loading) return
@@ -90,14 +109,14 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
     }
   }
 
-  // A post gets exactly one reply-idea generation per page view: `replies` is
-  // set to a non-empty array only on a 2xx response that actually returned
+  // A post gets exactly one reply-idea generation per scan cycle: `replies`
+  // is set to a non-empty array only on a 2xx response that actually returned
   // something, at which point the button below disables and a chevron takes
-  // over for re-opening the (already-paid-for) result. A failed attempt
-  // (network error, 402, 500) OR a 2xx with zero usable replies leaves
-  // `replies` null on purpose — the backend refunds the credit for both, so
-  // the button must stay enabled and let the user retry rather than locking
-  // on a request that produced nothing.
+  // over for re-opening the (already-paid-for, now persisted) result. A
+  // failed attempt (network error, 402, 500) OR a 2xx with zero usable
+  // replies leaves `replies` null on purpose — the backend refunds the credit
+  // for both, so the button must stay enabled and let the user retry rather
+  // than locking on a request that produced nothing.
   const generated = replies !== null && replies.length > 0
 
   async function generateIdea() {
@@ -282,7 +301,7 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
               {ideaLoading ? '...' : 'Reply idea'}
             </TooltipTrigger>
             <TooltipContent>
-              {`Drafts 3 reply comments for this post, respecting r/${post.subreddit}'s self-promo rules — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}, once while this page stays open`}
+              {`Drafts 3 reply comments for this post, respecting r/${post.subreddit}'s self-promo rules — ${pluralize(POST_CONTENT_IDEA_COST, 'credit')}, once until your next scan`}
             </TooltipContent>
           </Tooltip>
         )}
