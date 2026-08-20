@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { start } from 'workflow/api'
 import { sql } from '@/lib/db'
 import { scrapeCycleWorkflow } from '@/lib/workflows/scrape-cycle'
 import type { Campaign } from '@/lib/types'
+
+/**
+ * Constant-time compare against a `Bearer <secret>` header, failing closed if
+ * CRON_SECRET is unset — a naive `header !== \`Bearer ${secret}\`` would
+ * otherwise template to the literal string "Bearer undefined" and accept
+ * that as a valid token from any caller the moment the env var is missing.
+ * `timingSafeEqual` needs equal-length buffers, so length is checked first
+ * (mismatched length is itself not a secret worth protecting the timing of).
+ */
+function isAuthorized(authHeader: string | null): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret || !authHeader) return false
+  const expected = Buffer.from(`Bearer ${secret}`)
+  const actual = Buffer.from(authHeader)
+  return expected.length === actual.length && timingSafeEqual(expected, actual)
+}
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -24,8 +41,7 @@ export const maxDuration = 60
  *     config routes) require the user to take an action first.
  */
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorized(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

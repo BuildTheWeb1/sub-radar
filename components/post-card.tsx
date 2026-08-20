@@ -137,6 +137,12 @@ export function PostCard({ post, onStatusChange, guideline }: PostCardProps) {
           if (typeof data.need === 'number' && typeof data.have === 'number') {
             showInsufficientCreditsToast(data.need, data.have)
           }
+        } else if (res.status === 409) {
+          // Another request (a double-click, a second tab) already claimed
+          // this post server-side — not an error the user caused.
+          setIdeaError(data.error || 'A reply idea is already being generated for this post.')
+        } else if (res.status === 429) {
+          setIdeaError('Too many requests — try again in a moment.')
         } else if (data.error === 'idea_failed') {
           setIdeaError('The idea generator did not respond. Try again in a moment.')
         } else {

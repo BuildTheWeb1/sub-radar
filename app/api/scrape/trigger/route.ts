@@ -3,12 +3,26 @@ import { start } from 'workflow/api'
 import { sql } from '@/lib/db'
 import { requireUserId } from '@/lib/auth'
 import { scrapeCycleWorkflow } from '@/lib/workflows/scrape-cycle'
+import { checkRateLimit } from '@/lib/rate-limit'
 import type { Campaign } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
   const result = await requireUserId()
   if (result instanceof NextResponse) return result
   const userId = result
+
+  // Separate from the "already running" 429 below — that only blocks a
+  // second trigger while a job is genuinely open. This bounds the rate of
+  // trigger attempts themselves, since each one does a DB lookup and (on
+  // success) dispatches a workflow run before the open-job guard on the
+  // *next* attempt would even see it.
+  const rateLimit = await checkRateLimit(`scrape-trigger:${userId}`, 10, 60)
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: 'Too many requests — try again in a moment.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+    )
+  }
 
   // Target campaign can come from the request body or a query param.
   let campaignId = req.nextUrl.searchParams.get('campaignId')

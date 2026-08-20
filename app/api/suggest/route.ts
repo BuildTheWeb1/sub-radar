@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUserId } from '@/lib/auth'
 import { suggestSubredditsAndKeywords } from '@/lib/onboarding'
 import { deductCredits } from '@/lib/credits'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { SUGGEST_COST } from '@/lib/credit-costs'
 
 /**
@@ -18,6 +19,14 @@ export async function POST(req: NextRequest) {
   const result = await requireUserId()
   if (result instanceof NextResponse) return result
   const userId = result
+
+  const rateLimit = await checkRateLimit(`suggest:${userId}`, 10, 60)
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: 'Too many requests — try again in a moment.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+    )
+  }
 
   const body = await req.json().catch(() => ({}))
   const { productDescription } = body

@@ -36,7 +36,7 @@ export default function ContentIdeasPage() {
   async function generate() {
     setStatus('loading')
     try {
-      const res = await fetch('/api/content-ideas')
+      const res = await fetch('/api/content-ideas', { method: 'POST' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         if (res.status === 402 && typeof data.need === 'number' && typeof data.have === 'number') {

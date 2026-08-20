@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUserId } from '@/lib/auth'
 import { checkSubreddits } from '@/lib/guidelines'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 // Uncached names are spaced 2s apart to avoid tripping Reddit's block, so a full
@@ -14,6 +15,21 @@ const MAX_NAMES = 8
 export async function POST(req: NextRequest) {
   const result = await requireUserId()
   if (result instanceof NextResponse) return result
+  const userId = result
+
+  // Zero credit cost and it drives the app's single shared REDDIT_COOKIE
+  // session — with no limit here, a user could burn through Reddit's rate
+  // limit for every tenant at once, or use this as a free existence-checking
+  // oracle attributed to the app's Reddit account. 10 calls/min × up to
+  // MAX_NAMES names each is generous for legitimate onboarding/Radar use
+  // (a few bursts while picking targets), not a scripted loop.
+  const rateLimit = await checkRateLimit(`subreddits-check:${userId}`, 10, 60)
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: 'Too many requests — try again in a moment.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+    )
+  }
 
   const body = await req.json().catch(() => ({}))
   const { names } = body

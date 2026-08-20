@@ -215,3 +215,31 @@ create table if not exists deleted_accounts (
 -- clearReplyIdeasStep (lib/workflows/scrape-cycle.ts), run at the start of
 -- every cycle — chain and ad-hoc alike, since both call markRunStartedStep.
 alter table posts add column if not exists reply_ideas jsonb;
+
+-- Idempotency for refundCredits (lib/credits.ts). Its insert uses a bare
+-- `ON CONFLICT DO NOTHING` (no explicit target), which Postgres applies to a
+-- violation of ANY unique index on the table — so this partial index is what
+-- gives that clause something to actually catch for reason = 'refund',
+-- mirroring credit_ledger_scan_cycle_ref_id_idx and
+-- credit_ledger_purchase_ref_id_idx above. Only meaningful for a caller that
+-- deliberately reuses one ref_id across retries of the *same* refund attempt
+-- (true idempotency) — app/api/posts/[id]/reply-idea/route.ts, the current
+-- only caller, instead mints a fresh ref_id per attempt (see the comment
+-- there), because its ref_id used to be stable per post and this index would
+-- otherwise have silently dropped the refund for a post's second distinct
+-- failed attempt.
+create unique index if not exists credit_ledger_refund_ref_id_idx
+  on credit_ledger (ref_id) where reason = 'refund';
+
+-- Fixed-window rate limiter (see lib/rate-limit.ts), backed by Postgres
+-- rather than a new Redis/Upstash dependency this app doesn't otherwise
+-- need. One row per (route, user) pair — bounded by users × rate-limited
+-- routes, not by request volume, so it never grows unbounded the way a
+-- row-per-request log would. Applied to the routes that hit a billed LLM
+-- call or the app's single shared Reddit session, none of which had any
+-- request-rate ceiling before this.
+create table if not exists rate_limits (
+  key text primary key,
+  window_start timestamptz not null default now(),
+  count integer not null default 1
+);
